@@ -9,6 +9,13 @@
     * { box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI',sans-serif; }
     body { display:flex; height:100vh; overflow:hidden; background:var(--bg); color:var(--dark); }
     .sidebar { width:285px; background:var(--navy); color:#fff; display:flex; flex-direction:column; flex-shrink:0; z-index:20; }
+    .sidebar { transition:width .2s ease; overflow:hidden; }
+    .sidebar.collapsed { width:max(5vw,38px); }
+    .sidebar.collapsed .brand, .sidebar.collapsed .sidebar-nav, .sidebar.collapsed .sb-hide { display:none; }
+    .sb-hide, .sb-show { background:#152033; color:#facc15; border:none; border-bottom:1px solid rgba(255,255,255,0.08); cursor:pointer; font-weight:700; }
+    .sb-hide { width:100%; text-align:left; padding:9px 14px; font-size:13px; }
+    .sb-show { display:none; width:100%; padding:14px 0; font-size:18px; }
+    .sidebar.collapsed .sb-show { display:block; }
     .brand { display:flex; align-items:center; gap:12px; padding:14px; background:#152033; border-bottom:1px solid rgba(255,255,255,0.08); }
     .brand-logo { width:40px; height:40px; background:linear-gradient(135deg,#f59e0b,#ea580c); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; }
     .brand-name { font-size:15px; font-weight:700; color:#f8fafc; }
@@ -36,6 +43,17 @@
     .app-card:hover { transform:translateY(-3px); box-shadow:0 8px 15px rgba(0,0,0,0.07); border-color:var(--pri); }
     .card-icon { font-size:24px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; border-radius:10px; }
     .card-label { font-size:13px; font-weight:600; text-align:center; }
+    .dash2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .dash2 .stat-box { padding:12px 12px; min-width:0; }
+    .dash2 .stat-val { font-size:clamp(14px,4.3vw,19px); word-break:break-word; }
+    .dash2 .stat-sub { font-size:10.5px; color:#94a3b8; margin-top:2px; }
+    .menu12 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+    .menu12 .app-card { padding:12px 6px; min-width:0; text-align:center; }
+    .menu12 .card-label { font-size:clamp(11px,3.3vw,13px); }
+    .dash-filter { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0 12px; }
+    .dash-filter input[type=date] { padding:5px 6px; border:1px solid var(--bdr); border-radius:6px; font-size:12.5px; }
+    .dash-filter button { padding:5px 10px; border:1px solid var(--bdr); border-radius:6px; background:#fff; cursor:pointer; font-size:12.5px; font-weight:600; }
+    .dash-filter button.on { background:var(--pri); color:#fff; border-color:var(--pri); }
     .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:18px; }
     .stat-box { background:#fff; padding:14px 18px; border-radius:9px; border:1px solid #e2e8f0; }
     .stat-label { font-size:11.5px; font-weight:600; color:#64748b; text-transform:uppercase; }
@@ -165,6 +183,8 @@
   <input type="file" id="bulkCsvFileInput" accept=".csv,.txt,.tsv" style="display:none" onchange="handleBulkCsvUpload(event)">
 
   <aside class="sidebar">
+    <button class="sb-hide" type="button" onclick="sbToggle(true)">◀ Hide (மறை)</button>
+    <button class="sb-show" type="button" onclick="sbToggle(false)" title="Show (காட்டு)">▶</button>
     <div class="brand">
       <div class="brand-logo">CH</div>
       <div>
@@ -949,6 +969,13 @@
         ["🔎 f. Debit Note Search & Filter", "renderUnifiedFilter('DN')"]
       ] }
     ];
+    (function () {
+      const order = ['Dashboard', 'Purchase order', 'Purchase invoice', 'Account', 'Item', 'Sales order', 'Sales invoices', 'Receipt', 'Payment', 'Cash Book', 'Bank Register', 'Credit / Debit', 'HSN Summary'];
+      const sorted = order.map(k => NAV_MENU.find(m => m.label.indexOf(k) > -1));
+      if (sorted.some(x => !x) || new Set(sorted).size !== NAV_MENU.length) return;
+      sorted.forEach((m, i) => { if (i > 0) m.label = m.label.replace(/\d+\.\s/, i + '. '); });
+      NAV_MENU.splice(0, NAV_MENU.length, ...sorted);
+    })();
 
     function initSidebar() {
       el('sidebarNav').innerHTML = NAV_MENU.map(m => m.subs ? `
@@ -1133,8 +1160,29 @@
     }
 
     async function shareDataFile(){try{saveDB();const data=JSON.stringify(APP_DB,null,2);const fileName='Color_And_Hardwares_Data_'+new Date().toISOString().slice(0,10)+'.json';const file=new File([data],fileName,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Color And Hardwares Data',text:'CH Color And Hardwares - App data backup'});return;}await saveFileCompat(fileName,data,'application/json');}catch(e){if(e&&e.name!=='AbortError')alert('Share செய்ய முடியவில்லை: '+e.message);}}
+    function dashIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function dashGetRange() {
+      if (!window._dashR) { const t = dashIso(new Date()); window._dashR = { from: t, to: t, mode: 'today' }; }
+      return window._dashR;
+    }
+    function dashLabel(R) {
+      if (R.mode === 'today') return 'Today';
+      if (R.mode === 'month') return 'This Month';
+      if (R.mode === 'all' || (!R.from && !R.to)) return 'All Dates';
+      return (R.from || '…') + ' → ' + (R.to || '…');
+    }
+    function dashSetRange() { window._dashR = { from: el('dashFrom').value, to: el('dashTo').value, mode: 'custom' }; showDashboard(); }
+    function dashQuick(m) {
+      const n = new Date(), t = dashIso(n);
+      window._dashR = m === 'today' ? { from: t, to: t, mode: 'today' } : m === 'month' ? { from: dashIso(new Date(n.getFullYear(), n.getMonth(), 1)), to: dashIso(new Date(n.getFullYear(), n.getMonth() + 1, 0)), mode: 'month' } : { from: '', to: '', mode: 'all' };
+      showDashboard();
+    }
     function showDashboard() {
-      const s=(APP_DB.SO||[]).reduce((a,r)=>a+Number(r.grandTotal||0),0);const p=(APP_DB.PO||[]).reduce((a,r)=>a+Number(r.grandTotal||0),0);
+      const R = dashGetRange(), inR = r => { const d = String(r.date || '').slice(0, 10); return (!R.from || d >= R.from) && (!R.to || d <= R.to); };
+      const sumR = (arr, k) => (arr || []).filter(inR).reduce((a, r) => a + Number(r[k] || 0), 0);
+      const s = sumR(APP_DB.SO, 'grandTotal'), p = sumR(APP_DB.PO, 'grandTotal'), totCr = sumR(APP_DB.RECEIPT, 'amount'), totDr = sumR(APP_DB.PAYMENT, 'amount');
+      let toRec = 0, toPay = 0;
+      (APP_DB.SUPPLIERS || []).forEach(a => { try { if (!(isCustomerLedger(a) || isSupplierLedger(a))) return; const b = calcPartyBal(a), v = Math.abs(Number(b.amount) || 0); if (b.type === 'Dr') toRec += v; else toPay += v; } catch (e) {} });
       const cIn = APP_DB.RECEIPT.filter(r => isCashMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0) - APP_DB.PAYMENT.filter(r => isCashMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0);
       const bIn = APP_DB.RECEIPT.filter(r => isBankMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0) - APP_DB.PAYMENT.filter(r => isBankMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0);
       const cards = [
@@ -1151,15 +1199,28 @@
         ["📊", "#e0e7ff", "#4338ca", "11. HSN Summary Report", "renderHsnSummaryReport()"],
         ["📝", "#fce7f3", "#be185d", "12. Credit / Debit Note", "openVoucherModal('CN','NEW')"]
       ];
+      const _ord = ['Purchase Order', 'Purchase Invoice', 'Account', 'Item', 'Sales Order', 'Sales Invoice', 'Receipt', 'Payment', 'Cash Book', 'Bank Register', 'Credit / Debit', 'HSN Summary'];
+      const _cs = _ord.map(k => cards.find(c => c[3].indexOf(k) > -1));
+      const cs = (_cs.some(x => !x) || new Set(_cs).size !== cards.length) ? cards : _cs.map((c, i) => [c[0], c[1], c[2], (i + 1) + '. ' + c[3].replace(/^\d+\.\s*/, ''), c[4]]);
       el('mainContainer').innerHTML = `
-        <h2 class="page-title">Dashboard</h2><p class="section-subtitle">Quick Access Modules & Live Financial Summary</p>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-label">Total Sales (Orders)</div><div class="stat-val" style="color:var(--suc)">${fmt(s)}</div></div>
-          <div class="stat-box"><div class="stat-label">Total Purchases (Orders)</div><div class="stat-val" style="color:#9333ea">${fmt(p)}</div></div>
+        <h2 class="page-title">Dashboard <span style="font-size:14px;color:#a16207;font-weight:700;">· ${dashLabel(R)}</span></h2>
+        <div class="dash-filter">
+          <span>📅</span><input type="date" id="dashFrom" value="${R.from || ''}" onchange="dashSetRange()"><span>–</span><input type="date" id="dashTo" value="${R.to || ''}" onchange="dashSetRange()">
+          <button class="${R.mode === 'today' ? 'on' : ''}" onclick="dashQuick('today')">Today</button>
+          <button class="${R.mode === 'month' ? 'on' : ''}" onclick="dashQuick('month')">This Month</button>
+          <button class="${R.mode === 'all' ? 'on' : ''}" onclick="dashQuick('all')">All</button>
+        </div>
+        <div class="dash2">
+          <div class="stat-box"><div class="stat-label">Total Purchase</div><div class="stat-val" style="color:#9333ea">${fmt(p)}</div></div>
+          <div class="stat-box"><div class="stat-label">Total Sales</div><div class="stat-val" style="color:var(--suc)">${fmt(s)}</div></div>
+          <div class="stat-box"><div class="stat-label">Total Credit</div><div class="stat-val" style="color:#15803d">${fmt(totCr)}</div><div class="stat-sub">வரவு (Receipts)</div></div>
+          <div class="stat-box"><div class="stat-label">Total Debit</div><div class="stat-val" style="color:#b91c1c">${fmt(totDr)}</div><div class="stat-sub">பட்டுவாடா (Payments)</div></div>
+          <div class="stat-box"><div class="stat-label">To Be Received</div><div class="stat-val" style="color:#0369a1">${fmt(toRec)}</div><div class="stat-sub">வர வேண்டியது</div></div>
+          <div class="stat-box"><div class="stat-label">To Be Paid</div><div class="stat-val" style="color:#be185d">${fmt(toPay)}</div><div class="stat-sub">கொடுக்க வேண்டியது</div></div>
           <div class="stat-box"><div class="stat-label">Cash In Hand</div><div class="stat-val" style="color:#a16207">${fmt(cIn)}</div></div>
           <div class="stat-box"><div class="stat-label">Bank Balance</div><div class="stat-val" style="color:#ea580c">${fmt(bIn)}</div></div>
         </div>
-        <div class="cards-grid">${cards.map((c, ci) => `<div class="app-card" tabindex="0" role="button" onclick="openDashSub(${ci + 1})"><div class="card-icon" style="background:${c[1]};color:${c[2]}">${c[0]}</div><div class="card-label">${c[3]}</div></div>`).join('')}</div>`;
+        <div class="menu12">${cs.map((c, ci) => `<div class="app-card" tabindex="0" role="button" onclick="openDashSub(${ci + 1})"><div class="card-icon" style="background:${c[1]};color:${c[2]}">${c[0]}</div><div class="card-label">${c[3]}</div></div>`).join('')}</div>`;
     }
 
     /* Dashboard card -> popup with the same sub menu as the sidebar (index = position in NAV_MENU) */
@@ -5044,6 +5105,12 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     window.addEventListener('load', () => { try { if (localStorage.getItem('CH_DRIVE_ON')) driveBadgeSet('☁️ Drive: தட்டி இணைக்கவும்', ''); } catch (e) {} });
     /* ===== /Drive Sync ===== */
 
+    function sbToggle(c) {
+      const a = document.querySelector('.sidebar'); if (!a) return;
+      a.classList.toggle('collapsed', !!c);
+      try { localStorage.setItem('CH_SB_COLLAPSED', c ? '1' : '0'); } catch (e) {}
+    }
+    try { if (localStorage.getItem('CH_SB_COLLAPSED') === '1') document.querySelector('.sidebar').classList.add('collapsed'); } catch (e) {}
     window.onload = () => { initAuth(); initKeyboardNav(); initFormNav(); };
   </script>
 </body>
