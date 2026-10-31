@@ -37,6 +37,10 @@
     .db-badge.error { background:#fee2e2; color:#b91c1c; border-color:#fca5a5; }
     .content-body { flex:1; padding:20px; overflow-y:auto; }
     .page-title { font-size:19px; font-weight:700; margin-bottom:4px; }
+    .dashboard-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+    .dashboard-heading .page-title { margin-bottom:0; }
+    .dashboard-toggle-btn { flex-shrink:0; padding:5px 12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; color:#1e293b; font-size:12px; font-weight:700; cursor:pointer; }
+    .dashboard-toggle-btn:hover { background:#eff6ff; border-color:#2563eb; color:#1d4ed8; }
     .section-subtitle { font-size:12.5px; color:#64748b; margin-bottom:16px; }
     .cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:14px; }
     .app-card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:16px 12px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; transition:.2s; }
@@ -1203,7 +1207,11 @@
       const _cs = _ord.map(k => cards.find(c => c[3].indexOf(k) > -1));
       const cs = (_cs.some(x => !x) || new Set(_cs).size !== cards.length) ? cards : _cs.map((c, i) => [c[0], c[1], c[2], (i + 1) + '. ' + c[3].replace(/^\d+\.\s*/, ''), c[4]]);
       el('mainContainer').innerHTML = `
-        <h2 class="page-title">Dashboard <span style="font-size:14px;color:#a16207;font-weight:700;">· ${dashLabel(R)}</span></h2>
+        <div class="dashboard-heading">
+          <h2 class="page-title">Dashboard <span style="font-size:14px;color:#a16207;font-weight:700;">· ${dashLabel(R)}</span></h2>
+          <button type="button" id="dashboardToggleBtn" class="dashboard-toggle-btn" onclick="toggleDashboardDetails()" aria-expanded="true" title="Dashboard விவரங்களை மறைக்க / காட்ட">▼ Hide</button>
+        </div>
+        <div id="dashboardDetails">
         <div class="dash-filter">
           <span>📅</span><input type="date" id="dashFrom" value="${R.from || ''}" onchange="dashSetRange()"><span>–</span><input type="date" id="dashTo" value="${R.to || ''}" onchange="dashSetRange()">
           <button class="${R.mode === 'today' ? 'on' : ''}" onclick="dashQuick('today')">Today</button>
@@ -1220,7 +1228,32 @@
           <div class="stat-box"><div class="stat-label">Cash In Hand</div><div class="stat-val" style="color:#a16207">${fmt(cIn)}</div></div>
           <div class="stat-box"><div class="stat-label">Bank Balance</div><div class="stat-val" style="color:#ea580c">${fmt(bIn)}</div></div>
         </div>
-        <div class="menu12">${cs.map((c, ci) => `<div class="app-card" tabindex="0" role="button" onclick="openDashSub(${ci + 1})"><div class="card-icon" style="background:${c[1]};color:${c[2]}">${c[0]}</div><div class="card-label">${c[3]}</div></div>`).join('')}</div>`;
+        </div>
+        <div class="menu12">${cs.map((c, ci) => `<div class="app-card" tabindex="0" role="button" onclick="openDashSub(${ci + 1})"><div class="card-icon" style="background:${c[1]};color:${c[2]}">${c[0]}</div><div class="card-label">${c[3]}</div></div>`).join('')}
+        </div>`;
+      applyDashboardDetailsVisibility();
+    }
+
+    function applyDashboardDetailsVisibility() {
+      const details = el('dashboardDetails');
+      const btn = el('dashboardToggleBtn');
+      if (!details || !btn) return;
+      let hidden = false;
+      try { hidden = localStorage.getItem('CH_DASH_DETAILS_HIDDEN') === '1'; } catch (e) {}
+      details.style.display = hidden ? 'none' : '';
+      btn.innerText = hidden ? '▶ Show' : '▼ Hide';
+      btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    }
+
+    function toggleDashboardDetails() {
+      const details = el('dashboardDetails');
+      const btn = el('dashboardToggleBtn');
+      if (!details || !btn) return;
+      const hidden = details.style.display === 'none';
+      details.style.display = hidden ? '' : 'none';
+      btn.innerText = hidden ? '▼ Hide' : '▶ Show';
+      btn.setAttribute('aria-expanded', hidden ? 'true' : 'false');
+      try { localStorage.setItem('CH_DASH_DETAILS_HIDDEN', hidden ? '0' : '1'); } catch (e) {}
     }
 
     /* Dashboard card -> popup with the same sub menu as the sidebar (index = position in NAV_MENU) */
