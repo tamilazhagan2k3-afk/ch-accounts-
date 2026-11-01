@@ -273,7 +273,7 @@
         <!-- Bulk Entry Box (shown only in MULTI/PASTE mode) -->
         <div class="bulk-entry-box" id="bulkEntryBox" style="display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-            <strong style="font-size:13px;color:#a16207;">📥 Multi Item Paste Entry</strong>
+            <strong style="font-size:13px;color:#a16207;">📥 Multi Item Paste Entry <span style="font-weight:500;color:#64748b">(விருப்பம்: Excel Copy → Paste → Apply Paste)</span></strong>
             <div>
               <button type="button" class="btn btn-sm btn-convert" onclick="applyBulkItemPaste()">✅ Apply Paste</button>
               <button type="button" class="btn btn-sm btn-cancel" onclick="el('bulkItemPasteArea').value=''">Clear</button>
@@ -703,6 +703,14 @@
       const res = i.length > 3 ? i.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + i.slice(-3) : i;
       return `${neg ? '- ' : ''}₹ ${res}.${d}`;
     };
+    /** Quantity / stock — number only, no ₹ symbol */
+    const fmtQty = n => {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '0';
+      if (Number.isInteger(num)) return String(num);
+      const t = parseFloat(num.toFixed(3));
+      return String(t);
+    };
     const getFY = () => {
       const d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1, sy = m >= 4 ? y : y - 1, ey = sy + 1;
       return { startDate: `${sy}-04-01`, endDate: `${ey}-03-31`, sy, ey };
@@ -753,10 +761,10 @@
         { id: "SG_CUSTOMER", name: "Customer", parentId: "SG_SUNDRY_DEBTORS" }
       ],
       PO: [], INV: [], SO: [], SINV: [], RECEIPT: [], PAYMENT: [],
-      CN: [], DN: [],
+      CN: [], DN: [], JV: [],
       BANK_ACCOUNTS: [],
       PO_COUNTER: 1, INV_COUNTER: 1, SO_COUNTER: 1, SINV_COUNTER: 1, RECEIPT_COUNTER: 1, PAYMENT_COUNTER: 1,
-      CN_COUNTER: 1, DN_COUNTER: 1
+      CN_COUNTER: 1, DN_COUNTER: 1, JV_COUNTER: 1
     });
 
     // Payment / Receipt modes
@@ -784,6 +792,8 @@
     if (!APP_DB.DN) APP_DB.DN = [];
     if (APP_DB.CN_COUNTER == null) APP_DB.CN_COUNTER = 1;
     if (APP_DB.DN_COUNTER == null) APP_DB.DN_COUNTER = 1;
+    if (!APP_DB.JV) APP_DB.JV = [];
+    if (APP_DB.JV_COUNTER == null) APP_DB.JV_COUNTER = 1;
     // Ensure account group hierarchy: Sundry Creditors → Supplier, Sundry Debtors → Customer
     (function ensureAccountGroups() {
       if (!APP_DB.SUPPLIER_GROUPS_TREE) APP_DB.SUPPLIER_GROUPS_TREE = [];
@@ -895,6 +905,7 @@
       const keep = Array.isArray(APP_DB.AUTH_USERS) ? APP_DB.AUTH_USERS : null;
       APP_DB = { ...initCleanState(), ...obj };
       if (!(Array.isArray(APP_DB.AUTH_USERS) && APP_DB.AUTH_USERS.length) && keep) APP_DB.AUTH_USERS = keep;
+      try { ensureExtraGroups(); } catch (e) {}
     }
 
     function saveDB(key, val) {
@@ -944,21 +955,17 @@
     const NAV_MENU = [
       { label: "📊 Dashboard", fn: "showDashboard()" },
       { label: "🛒 1. Purchase order", id: "poD", subs: [
-        ["➕ a. Single Item Entry", "openGenericModal('PO','NEW',null,'SINGLE')"],
-        ["📥 b. Multi Item Paste Entry", "openGenericModal('PO','NEW',null,'MULTI')"],
-        ["📂 c. List (Select / Edit / Delete)", "renderGenericList('PO')"],
-        ["🔎 d. Search & Filter (Doc / Date / Ledger / Group)", "renderOrderFilter('PO')"]
+        ["➕ 1. Purchase Order New", "openGenericModal('PO','NEW',null,'BOTH')"],
+        ["📂 2. Purchase Order List", "openOrderListFresh('PO')"]
       ] },
       { label: "🧱 2. Item", id: "itD", subs: [["➕ a. Add New Item", "openItemModal()"], ["📑 b. Item List (Multi-Del)", "renderItemList()"], ["📁 c. Item Group Add", "openGroupModal('MATERIAL')"], ["🗂️ d. Item Group List", "renderGroupList('MATERIAL')"], ["📦 e. Item History & Stock", "renderItemHistory()"], ["💰 f. Item Value", "renderItemValueReport()"]] },
       { label: "👥 3. Account", id: "acD", subs: [["➕ a. Add New Account", "openSupplierModal()"], ["📑 b. Account List (Multi-Del)", "renderAccountList()"], ["📁 c. Account Group Add", "openGroupModal('SUPPLIER')"], ["🗂️ d. Account Group List", "renderGroupList('SUPPLIER')"], ["📜 e. Party Ledger Statement", "renderPartyLedger()"]] },
-      { label: "📄 4. Purchase invoice", id: "piD", subs: [["➕ New Purchase Invoice (Manual)", "openGenericModal('INV','NEW')"], ["📂 Open / List Invoices", "renderGenericList('INV')"], ["🔎 Search & Filter (Date / Month / Ledger / Group)", "renderUnifiedFilter('INV')"]] },
+      { label: "📄 4. Purchase invoice", fn: "openOrderListFresh('INV')" },
       { label: "📦 5. Sales order", id: "soD", subs: [
-        ["➕ a. Single Item Entry", "openGenericModal('SO','NEW',null,'SINGLE')"],
-        ["📥 b. Multi Item Paste Entry", "openGenericModal('SO','NEW',null,'MULTI')"],
-        ["📂 c. List (Select / Edit / Delete)", "renderGenericList('SO')"],
-        ["🔎 d. Search & Filter (Doc / Date / Ledger / Group)", "renderOrderFilter('SO')"]
+        ["➕ 1. Sales Order New", "openGenericModal('SO','NEW',null,'BOTH')"],
+        ["📂 2. Sales Order List", "openOrderListFresh('SO')"]
       ] },
-      { label: "🧾 6. Sales invoices", id: "siD", subs: [["➕ New Sales Invoice", "openGenericModal('SINV','NEW')"], ["📂 Open / List SINV (Multi-Del)", "renderGenericList('SINV')"], ["🔎 Search & Filter (Date / Month / Ledger / Group)", "renderUnifiedFilter('SINV')"]] },
+      { label: "🧾 6. Sales invoices", fn: "openOrderListFresh('SINV')" },
       { label: "💵 7. Receipt (வரவு)", id: "rcD", subs: [["➕ New Receipt Entry", "openVoucherModal('RECEIPT','NEW')"], ["📑 Receipt List", "renderVoucherList('RECEIPT')"], ["🔎 Search & Filter (Date / Month / Ledger / Group)", "renderUnifiedFilter('RECEIPT')"]] },
       { label: "💳 8. Payment (பட்டுவாடா)", id: "pyD", subs: [["➕ New Payment Entry", "openVoucherModal('PAYMENT','NEW')"], ["📑 Payment List", "renderVoucherList('PAYMENT')"], ["🔎 Search & Filter (Date / Month / Ledger / Group)", "renderUnifiedFilter('PAYMENT')"]] },
       { label: "🪙 9. Cash Book", id: "cashD", subs: [["📒 Cash Book Register", "renderCashBank('Cash')"], ["🔎 Search & Filter (Date / Month / Ledger / Group)", "renderUnifiedFilter('CASH')"]] },
@@ -970,7 +977,9 @@
         ["📂 c. List of Credit Notes", "renderVoucherList('CN')"],
         ["📂 d. List of Debit Notes", "renderVoucherList('DN')"],
         ["🔎 e. Credit Note Search & Filter", "renderUnifiedFilter('CN')"],
-        ["🔎 f. Debit Note Search & Filter", "renderUnifiedFilter('DN')"]
+        ["🔎 f. Debit Note Search & Filter", "renderUnifiedFilter('DN')"],
+        ["📒 g. Journal Entry (புதிய)", "openJournalModal()"],
+        ["📂 h. List of Journals", "renderJournalList()"]
       ] }
     ];
     (function () {
@@ -979,6 +988,12 @@
       if (sorted.some(x => !x) || new Set(sorted).size !== NAV_MENU.length) return;
       sorted.forEach((m, i) => { if (i > 0) m.label = m.label.replace(/\d+\.\s/, i + '. '); });
       NAV_MENU.splice(0, NAV_MENU.length, ...sorted);
+    })();
+    (function () {
+      const f = k => NAV_MENU.find(m => m.label.indexOf(k) > -1);
+      f('Purchase order').subs.push(['↩️ 3. Purchase Return', "renderReturnForm('PRET')"], ['📋 4. Purchase Return List', "renderReturnList('PRET')"]);
+      f('Sales order').subs.push(['↩️ 3. Sales Return', "renderReturnForm('SRET')"], ['📋 4. Sales Return List', "renderReturnList('SRET')"]);
+      NAV_MENU.push({ label: '📈 13. Financial Statement (நிதிநிலை அறிக்கை)', fn: 'renderFinancialStatement()' });
     })();
 
     function initSidebar() {
@@ -1012,7 +1027,7 @@
       const cnt = (type === 'SO' || type === 'SINV')
         ? Math.max(1, parseInt(APP_DB.SALES_COUNTER || 1, 10), parseInt(APP_DB.SO_COUNTER || 1, 10), parseInt(APP_DB.SINV_COUNTER || 1, 10))
         : parseInt(APP_DB[type + '_COUNTER'] || 1, 10);
-      const pfx = { SO: 'CH', SINV: 'CH', RECEIPT: 'CHREC', PAYMENT: 'CHPAY', CN: 'CHCN', DN: 'CHDN' }[type] || 'CH';
+      const pfx = { SO: 'CH', SINV: 'CH', RECEIPT: 'CHREC', PAYMENT: 'CHPAY', CN: 'CHCN', DN: 'CHDN', JV: 'CHJV' }[type] || 'CH';
       return `${pfx}-${String(cnt).padStart(5, '0')}/${fy.sy}-${String(fy.ey).slice(-2)}`;
     }
     function incCounter(type) {
@@ -1037,7 +1052,7 @@
       return ({
         PO: 'Purchase Order', INV: 'Purchase Invoice',
         SO: 'Sales Order', SINV: 'Sales Invoice',
-        CN: 'Credit Note', DN: 'Debit Note',
+        CN: 'Credit Note', DN: 'Debit Note', JV: 'Journal',
         RECEIPT: 'Receipt', PAYMENT: 'Payment'
       })[type] || type;
     }
@@ -1085,6 +1100,9 @@
           }
         }
       }
+      for (const doc of (APP_DB.JV || [])) {
+        if ([doc.drParty, doc.crParty].some(x => String(x || '').trim().toLowerCase() === n)) return { type: 'JV', docNumber: doc.docNumber, date: doc.date, partyName: n };
+      }
       return null;
     }
 
@@ -1128,14 +1146,15 @@
       const sum = (arr, k) => (arr || []).filter(r => (r.partyName || '').toLowerCase() === n).reduce((s, r) => s + Number(r[k] || 0), 0);
       const s = sum(APP_DB.SO, 'grandTotal'), p = sum(APP_DB.PO, 'grandTotal');
       const rc = sum(APP_DB.RECEIPT, 'amount'), py = sum(APP_DB.PAYMENT, 'amount');
-      const cn = sum(APP_DB.CN, 'grandTotal'), dn = sum(APP_DB.DN, 'grandTotal');
+      const jvD = (APP_DB.JV || []).filter(r => String(r.drParty || '').toLowerCase() === n).reduce((a, r) => a + Number(r.amount || 0), 0), jvC = (APP_DB.JV || []).filter(r => String(r.crParty || '').toLowerCase() === n).reduce((a, r) => a + Number(r.amount || 0), 0);
+      const cn = sum(APP_DB.CN, 'grandTotal'), dn = sum(APP_DB.DN, 'grandTotal'), prt = sum(APP_DB.PRET, 'grandTotal'), srt = sum(APP_DB.SRET, 'grandTotal');
       // Debtor: +Sales +DebitNote −Receipt −CreditNote −Purchase +Payment
       // Creditor: +Purchase +CreditNote −Payment −DebitNote −Sales +Receipt
       if (typeof isCustomerLedger === 'function' ? isCustomerLedger(acc) : (acc.groupId === 'SG_CUSTOMER' || acc.groupId === 'SG_SUNDRY_DEBTORS')) {
-        const b = op + s + dn - rc - cn + py - p;
+        const b = op + s + dn - rc - cn + py - p - srt + prt + jvD - jvC;
         return { amount: b, type: b >= 0 ? 'Dr' : 'Cr' };
       }
-      const b = op + p + cn - py - dn + rc - s;
+      const b = op + p + cn - py - dn + rc - s - prt + srt + jvC - jvD;
       return { amount: b, type: b >= 0 ? 'Cr' : 'Dr' };
     }
     function fmtPartyBal(acc) {
@@ -1143,7 +1162,7 @@
       const abs = Math.abs(Number(b.amount) || 0);
       return `${fmt(abs)} ${b.type}`;
     }
-    function getItemStock(itemName){if(!itemName)return 0;const nl=String(itemName).toLowerCase();const opening=(APP_DB.MATERIALS||[]).filter(m=>String(m.name||'').toLowerCase()===nl).reduce((a,m)=>a+Number(m.openingQty||0),0);let pQ=0,sQ=0;(APP_DB.PO||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)pQ+=Number(it.qty||0);}));(APP_DB.SO||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)sQ+=Number(it.qty||0);}));return opening+pQ-sQ;}
+    function getItemStock(itemName){if(!itemName)return 0;const nl=String(itemName).toLowerCase();const opening=(APP_DB.MATERIALS||[]).filter(m=>String(m.name||'').toLowerCase()===nl).reduce((a,m)=>a+Number(m.openingQty||0),0);let pQ=0,sQ=0;(APP_DB.PO||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)pQ+=Number(it.qty||0);}));(APP_DB.SO||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)sQ+=Number(it.qty||0);}));(APP_DB.PRET||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)pQ-=Number(it.qty||0);}));(APP_DB.SRET||[]).forEach(d=>(d.items||[]).forEach(it=>{if((it.itemName||'').toLowerCase()===nl)sQ-=Number(it.qty||0);}));return opening+pQ-sQ;}
     function fmtItemStock(m) {
       const stk = getItemStock(m.name);
       const unit = m.unit || '';
@@ -1184,18 +1203,18 @@
     function showDashboard() {
       const R = dashGetRange(), inR = r => { const d = String(r.date || '').slice(0, 10); return (!R.from || d >= R.from) && (!R.to || d <= R.to); };
       const sumR = (arr, k) => (arr || []).filter(inR).reduce((a, r) => a + Number(r[k] || 0), 0);
-      const s = sumR(APP_DB.SO, 'grandTotal'), p = sumR(APP_DB.PO, 'grandTotal'), totCr = sumR(APP_DB.RECEIPT, 'amount'), totDr = sumR(APP_DB.PAYMENT, 'amount');
+      const s = sumR(APP_DB.SO, 'grandTotal') - sumR(APP_DB.SRET, 'grandTotal'), p = sumR(APP_DB.PO, 'grandTotal') - sumR(APP_DB.PRET, 'grandTotal'), totCr = sumR(APP_DB.RECEIPT, 'amount'), totDr = sumR(APP_DB.PAYMENT, 'amount');
       let toRec = 0, toPay = 0;
       (APP_DB.SUPPLIERS || []).forEach(a => { try { if (!(isCustomerLedger(a) || isSupplierLedger(a))) return; const b = calcPartyBal(a), v = Math.abs(Number(b.amount) || 0); if (b.type === 'Dr') toRec += v; else toPay += v; } catch (e) {} });
       const cIn = APP_DB.RECEIPT.filter(r => isCashMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0) - APP_DB.PAYMENT.filter(r => isCashMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0);
       const bIn = APP_DB.RECEIPT.filter(r => isBankMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0) - APP_DB.PAYMENT.filter(r => isBankMode(r.mode)).reduce((a, b) => a + Number(b.amount || 0), 0);
       const cards = [
-        ["🛒", "#e0f2fe", "#0284c7", "1. Purchase Order", "openGenericModal('PO','NEW',null,'SINGLE')"],
+        ["🛒", "#e0f2fe", "#0284c7", "1. Purchase Order", "openGenericModal('PO','NEW',null,'BOTH')"],
         ["🧱", "#fef3c7", "#d97706", "2. Item", "renderItemList()"],
         ["👥", "#fae8ff", "#c026d3", "3. Account", "renderAccountList()"],
-        ["📄", "#f3e8ff", "#9333ea", "4. Purchase Invoice", "openGenericModal('INV','NEW')"],
-        ["📦", "#dcfce7", "#16a34a", "5. Sales Order", "openGenericModal('SO','NEW',null,'SINGLE')"],
-        ["🧾", "#ffedd5", "#ea580c", "6. Sales Invoice", "openGenericModal('SINV','NEW')"],
+        ["📄", "#f3e8ff", "#9333ea", "4. Purchase Invoice", "openOrderListFresh('INV')"],
+        ["📦", "#dcfce7", "#16a34a", "5. Sales Order", "openGenericModal('SO','NEW',null,'BOTH')"],
+        ["🧾", "#ffedd5", "#ea580c", "6. Sales Invoice", "openOrderListFresh('SINV')"],
         ["💵", "#dcfce7", "#15803d", "7. Receipt (வரவு)", "openVoucherModal('RECEIPT','NEW')"],
         ["💳", "#fee2e2", "#b91c1c", "8. Payment (பட்டுவாடா)", "openVoucherModal('PAYMENT','NEW')"],
         ["🪙", "#fef9c3", "#a16207", "9. Cash Book", "renderCashBank('Cash')"],
@@ -1204,6 +1223,7 @@
         ["📝", "#fce7f3", "#be185d", "12. Credit / Debit Note", "openVoucherModal('CN','NEW')"]
       ];
       const _ord = ['Purchase Order', 'Purchase Invoice', 'Account', 'Item', 'Sales Order', 'Sales Invoice', 'Receipt', 'Payment', 'Cash Book', 'Bank Register', 'Credit / Debit', 'HSN Summary'];
+      cards.push([cards[0][0] && '📈', '#cffafe', '#0e7490', '13. Financial Statement', cards[0][4]]); _ord.push('Financial Statement'); window._dashBal = { cIn, bIn, toRec, toPay };
       const _cs = _ord.map(k => cards.find(c => c[3].indexOf(k) > -1));
       const cs = (_cs.some(x => !x) || new Set(_cs).size !== cards.length) ? cards : _cs.map((c, i) => [c[0], c[1], c[2], (i + 1) + '. ' + c[3].replace(/^\d+\.\s*/, ''), c[4]]);
       el('mainContainer').innerHTML = `
@@ -1281,16 +1301,86 @@
     }
     document.addEventListener('keydown', e => { const dm = el('dashSubModal'); if (e.key === 'Escape' && dm && dm.classList.contains('active')) { closeModal('dashSubModal'); focusFirstCard(); } });
 
-    function bindMultiSelect(cls, btnId, cntId, allId) {
+    /* ESC = Back to Dashboard icons, for the menus that open a page directly (Purchase invoice, Sales invoices, HSN Summary) */
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape' || e.repeat || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+      const auth = el('authOverlay'); if (auth && getComputedStyle(auth).display !== 'none') return;
+      if (document.querySelector('.modal-overlay.active')) return;
+      const um = el('userManageModal'); if (um && getComputedStyle(um).display !== 'none') return;
+      if (Array.from(document.querySelectorAll('.autocomplete-dropdown')).some(d => d.offsetParent !== null && d.children.length)) return;
+      const mc = el('mainContainer'); if (!mc || !mc.querySelector('[data-esc-back]')) return;
+      e.preventDefault();
+      showDashboard();
+      setTimeout(focusFirstCard, 30);
+    });
+
+    function bindMultiSelect(cls, btnId, cntId, allId, editBtnId) {
       const all = document.querySelectorAll('.' + cls), chk = document.querySelectorAll('.' + cls + ':checked');
       all.forEach(c => c.closest('tr')?.classList.toggle('selected-row', c.checked));
       if (el(cntId)) el(cntId).innerText = chk.length;
       if (el(btnId)) el(btnId).style.display = chk.length > 0 ? 'inline-block' : 'none';
+      // Single-select edit: show Edit Selected only when exactly one row is checked
+      const eBtn = editBtnId ? el(editBtnId) : (btnId ? el(String(btnId).replace(/^bulkBtn_/, 'editBtn_')) : null);
+      if (eBtn) eBtn.style.display = chk.length === 1 ? 'inline-block' : 'none';
       if (el(allId) && all.length > 0) el(allId).checked = (chk.length === all.length);
     }
-    function toggleAllChecks(cls, checked, btnId, cntId, allId) {
+    function toggleAllChecks(cls, checked, btnId, cntId, allId, editBtnId) {
       document.querySelectorAll('.' + cls).forEach(c => c.checked = checked);
-      bindMultiSelect(cls, btnId, cntId, allId);
+      bindMultiSelect(cls, btnId, cntId, allId, editBtnId);
+    }
+    /** Get the single checked value or alert and return null */
+    function getSingleSelectedValue(cls, label) {
+      const chk = document.querySelectorAll('.' + cls + ':checked');
+      if (!chk.length) { alert((label || 'பதிவு') + ' select செய்யவும்.'); return null; }
+      if (chk.length > 1) { alert('Edit செய்ய ஒரு பதிவை மட்டும் select செய்யவும்.'); return null; }
+      return chk[0].value;
+    }
+    function editSelectedGeneric(type) {
+      const id = getSingleSelectedValue('chk-' + type, 'Order / Invoice');
+      if (id == null) return;
+      openGenericModal(type, 'EDIT', id);
+    }
+    function editSelectedVoucher(type) {
+      const id = getSingleSelectedValue('chk-' + type, 'Voucher');
+      if (id == null) return;
+      openVoucherModal(type, 'EDIT', id);
+    }
+    function editSelectedItem() {
+      const v = getSingleSelectedValue('chk-item', 'Item');
+      if (v == null) return;
+      openItemModal('', null, parseInt(v, 10));
+    }
+    function editSelectedAccount() {
+      const v = getSingleSelectedValue('chk-acc', 'Account');
+      if (v == null) return;
+      openSupplierModal('', false, parseInt(v, 10));
+    }
+    function editSelectedUnified(type) {
+      const v = getSingleSelectedValue('chk-uf-' + type, 'பதிவு');
+      if (v == null) return;
+      if (type === 'CASH' || type === 'BANK') {
+        const parts = String(v).split('|');
+        if (parts.length < 2) return;
+        openVoucherModal(parts[0], 'EDIT', parts[1]);
+        return;
+      }
+      if (['INV', 'SINV', 'PO', 'SO'].includes(type)) openGenericModal(type, 'EDIT', v);
+      else openVoucherModal(type, 'EDIT', v);
+    }
+    function editSelectedReturn(type) {
+      const id = getSingleSelectedValue('chk-ret-' + type, 'Return');
+      if (id == null) return;
+      renderReturnForm(type, id);
+    }
+    function editSelectedBankAcc() {
+      const id = getSingleSelectedValue('chk-bankacc', 'Bank Account');
+      if (id == null) return;
+      openBankAccountModal(id);
+    }
+    function editSelectedGroup(type) {
+      const id = getSingleSelectedValue('chk-grp-' + type, 'Group');
+      if (id == null) return;
+      openGroupModal(type, id);
     }
 
     function openGenericModal(type, mode = 'NEW', id = null, entryMode = 'SINGLE') {
@@ -1305,9 +1395,10 @@
         CN: 'Credit Note', DN: 'Debit Note'
       };
       // entryMode: SINGLE = no bulk box | MULTI = show paste box | (EDIT keeps hidden unless MULTI)
-      const isMulti = (entryMode === 'MULTI' || entryMode === 'BULK');
+      const isMulti = (entryMode === 'MULTI' || entryMode === 'BULK' || entryMode === 'BOTH');
       let modeLabel = mode;
-      if (mode === 'NEW') modeLabel = isMulti ? 'Multi Paste Entry' : (type === 'CN' || type === 'DN' ? 'New' : 'Single Item Entry');
+      if (mode === 'NEW') modeLabel = entryMode === 'BOTH' ? 'New (Single / Multi Paste)' : isMulti ? 'Multi Paste Entry' : (type === 'CN' || type === 'DN' ? 'New' : 'Single Item Entry');
+      else if (mode === 'EDIT') modeLabel = 'Edit';
       el('genericModalTitle').innerText = `${titles[type]} – ${modeLabel}`;
       const inp = el('docNumberInput');
       // PO and INV are manual entry; others are auto-generated
@@ -2275,7 +2366,7 @@
       // Prevent duplicate Order / Invoice numbers (same type)
       if (!assertUniqueDocNo(type, docNumber, isEdit ? editDocId : null)) return;
       if (!partyName) return alert("Enter Party Name!");
-      if (!APP_DB.SUPPLIERS.some(s => s.name.toLowerCase() === partyName.toLowerCase())) return openSupplierModal(partyName, true);
+      if (!APP_DB.SUPPLIERS.some(s => nameKey(s.name) === nameKey(partyName))) return openSupplierModal(partyName, true);
       let items = getModalItems(); if (!items.length) return alert("Add at least 1 item!");
       // Invoice: remove / block No tax group items
       if (isInvoiceDocType(type)) {
@@ -2403,7 +2494,7 @@
         }
       }
       const partyName = el('partyNameInput').value.trim(); if (!partyName) return alert("Enter Party Name!");
-      if (!APP_DB.SUPPLIERS.some(s => s.name.toLowerCase() === partyName.toLowerCase())) {
+      if (!APP_DB.SUPPLIERS.some(s => nameKey(s.name) === nameKey(partyName))) {
         return openSupplierModal(partyName, true);
       }
       const sourceOrderItems = getModalItems();
@@ -2709,28 +2800,73 @@
       return true;
     }
 
+    // Purchase / Sales Order List = List (Select / Edit / Delete) + Search & Filter in one screen
+    function openOrderListFresh(type) { window._glF = {}; renderGenericList(type); }
+    function glFilterChanged(type) {
+      window._glF = {
+        from: el('ofFrom')?.value || '', to: el('ofTo')?.value || '', month: el('ofMonth')?.value || '',
+        doc: el('ofDoc')?.value || '', ledger: el('ofLedger')?.value || '', group: el('ofGroup')?.value || ''
+      };
+      renderGenericListTable(type);
+    }
+    function glFilterClear(type) {
+      window._glF = {};
+      ['ofFrom', 'ofTo', 'ofMonth', 'ofDoc', 'ofLedger', 'ofGroup'].forEach(id => { if (el(id)) el(id).value = ''; });
+      renderGenericListTable(type);
+    }
     function renderGenericList(type) {
       const titles = {
         PO: 'Purchase Orders (Manual)', INV: 'Purchase Invoices (Manual)', SO: 'Sales Orders (CH)', SINV: 'Sales Invoices (CH)',
         CN: 'Credit Notes (CHCN)', DN: 'Debit Notes (CHDN)'
       };
-      const list = APP_DB[type] || [];
+      const hasF = (type === 'PO' || type === 'SO' || type === 'INV' || type === 'SINV'), F = window._glF || {};
+      let filterBar = '';
+      if (hasF) {
+        const flat = []; (function gw(nodes) { (nodes || []).forEach(g => { flat.push(g); gw(g.children || []); }); })(APP_DB.SUPPLIER_GROUPS_TREE || []);
+        filterBar = `<div class="filter-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;padding:12px;background:var(--card);border-radius:10px;">
+          <label>From Date<input type="date" id="ofFrom" class="form-control" value="${escH(F.from || '')}" onchange="if(el('ofMonth'))el('ofMonth').value='';glFilterChanged('${type}')"></label>
+          <label>To Date<input type="date" id="ofTo" class="form-control" value="${escH(F.to || '')}" onchange="if(el('ofMonth'))el('ofMonth').value='';glFilterChanged('${type}')"></label>
+          <label>Month<input type="month" id="ofMonth" class="form-control" value="${escH(F.month || '')}" onchange="if(el('ofFrom'))el('ofFrom').value='';if(el('ofTo'))el('ofTo').value='';glFilterChanged('${type}')"></label>
+          <label>Doc Number<input id="ofDoc" class="form-control" placeholder="Doc No" value="${escH(F.doc || '')}" oninput="glFilterChanged('${type}')"></label>
+          <label>Ledger Name<input id="ofLedger" class="form-control" placeholder="Ledger பெயர்" value="${escH(F.ledger || '')}" oninput="glFilterChanged('${type}')"></label>
+          <label>Ledger Group<input id="ofGroup" class="form-control" list="ofGroupList" placeholder="Group பெயர்" value="${escH(F.group || '')}" oninput="glFilterChanged('${type}')"><datalist id="ofGroupList">${flat.map(g => `<option value="${escH(g.name || '')}">`).join('')}</datalist></label>
+          <button class="btn btn-cancel" onclick="glFilterClear('${type}')">Clear Filters</button>
+        </div>`;
+      }
       el('mainContainer').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-          <div><h2 class="page-title">${titles[type]}</h2><p class="section-subtitle">☑️ Multi-Select & Multi-Delete, Edit & Print · Order Delete செய்தால் linked Cash/Bank voucher-ம் நீங்கும்</p></div>
+          <div><h2 class="page-title"${(type === 'INV' || type === 'SINV') ? ' data-esc-back="1"' : ''}>${titles[type]}</h2><p class="section-subtitle">${type === 'INV'
+            ? '📋 Purchase Invoice List · ☑️ Select → Edit / Delete · தேதி / மாதம் / Doc No / Ledger / Group மூலம் Filter'
+            : type === 'SINV'
+            ? '📋 Sales Invoice List · ☑️ Select → Edit / Delete · தேதி / மாதம் / Doc No / Ledger / Group மூலம் Filter'
+            : `☑️ ஒரு பதிவை Select → ✏️ Edit Selected · Multi-Delete · Row ✏️ / Double-click · Order Delete செய்தால் linked Cash/Bank voucher-ம் நீங்கும்${hasF ? ' · தேதி, மாதம், Doc No, Ledger, Group மூலம் தேடலாம்' : ''}`}</p></div>
           <div>
             <button id="bulkBtn_${type}" class="btn btn-bulk" onclick="bulkDelGeneric('${type}')">🗑️ Delete Selected (<span id="bulkCnt_${type}">0</span>)</button>
-            <button class="btn btn-save" onclick="openGenericModal('${type}','NEW',null,'SINGLE')">+ New (Single)</button>
-            ${(type === 'PO' || type === 'SO') ? `<button class="btn btn-convert" onclick="openGenericModal('${type}','NEW',null,'MULTI')">📥 Multi Paste</button>` : ''}
-            <button class="btn btn-print" onclick="printGenericSummary('${type}')">🖨️ Print All</button>
+            <button id="editBtn_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedGeneric('${type}')">✏️ Edit Selected</button>
+            ${(type === 'INV' || type === 'SINV') ? '' : `<button class="btn btn-save" onclick="openGenericModal('${type}','NEW',null,'${hasF ? 'BOTH' : 'SINGLE'}')">${(type === 'PO' || type === 'SO') ? '+ New' : '+ New (Single)'}</button>`}
+            <button class="btn btn-print" onclick="${(type === 'PO' || type === 'SO' || type === 'INV' || type === 'SINV') ? `printOrderFilter('${type}')` : `printGenericSummary('${type}')`}">🖨️ Print</button>
             <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
           </div>
         </div>
-        <table class="items-table">
-          <thead><tr><th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></th><th>#</th><th>Doc No</th><th>Date</th><th>Party Name</th>${(type==='PO'||type==='SO')?'<th>Mode</th>':''}<th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Colorant</th><th style="text-align:right">Grand Total</th><th style="text-align:center">Action</th></tr></thead>
+        ${filterBar}<div id="genericListArea"></div>`;
+      renderGenericListTable(type);
+    }
+    function renderGenericListTable(type) {
+      const area = el('genericListArea'); if (!area) return;
+      const hasF = (type === 'PO' || type === 'SO' || type === 'INV' || type === 'SINV');
+      let list = APP_DB[type] || [], summary = '';
+      if (hasF) {
+        const rows = getOrderFilterRows(type);
+        if (rows === null) { area.innerHTML = '<p style="padding:14px;color:#b91c1c">From Date, To Date-ஐ விட பின்னதாக இருக்கக்கூடாது.</p>'; return; }
+        list = rows;
+        const sum = rows.reduce((n, r) => n + Number(r.grandTotal || 0), 0);
+        summary = `<p style="font-size:13px;font-weight:700;margin:8px 0">கிடைத்த பதிவுகள்: ${rows.length} &nbsp; | &nbsp; மொத்த தொகை: ${fmt(sum)}</p>`;
+      }
+      area.innerHTML = `${summary}<div style="overflow-x:auto"><table class="items-table">
+          <thead><tr><th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></th><th>#</th><th>Doc No</th><th>Date</th><th>Party Name</th>${(type==='PO'||type==='SO')?'<th>Mode</th>':''}<th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Colorant</th><th style="text-align:right">Grand Total</th><th style="text-align:center">Action</th></tr></thead>
           <tbody>${list.slice().reverse().map((r, i) => `
-            <tr>
-              <td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></td>
+            <tr ondblclick="openGenericModal('${type}','EDIT','${r.id}')" title="Double-click = Edit">
+              <td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></td>
               <td>${i + 1}</td><td style="font-weight:700;color:#a16207">${escH(r.docNumber)}${r.convertedFromOrder?' <span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 6px;border-radius:10px;">From Order</span>':''}</td><td>${r.date}</td><td><strong>${escH(r.partyName)}</strong></td>
               ${(type==='PO'||type==='SO')?`<td style="font-size:12px;">${r.payMode||'-'}</td>`:''}
               <td style="text-align:right">${fmt(r.subtotal)}</td><td style="text-align:right">${fmt(Number(r.cgst||0)+Number(r.sgst||0))}</td><td style="text-align:right">${fmt(r.colorantTotal)}</td><td style="text-align:right;font-weight:700">${fmt(r.grandTotal)}</td>
@@ -2740,12 +2876,13 @@
                 <button class="btn btn-sm btn-delete" onclick="if(deleteGenericDoc('${type}','${r.id}'))renderGenericList('${type}');">🗑️</button>
               </td>
             </tr>`).join('') || `<tr><td colspan="11" style="text-align:center;padding:30px">பதிவுகள் இல்லை</td></tr>`}</tbody>
-        </table>`;
+        </table></div>`;
+      bindMultiSelect('chk-' + type, 'bulkBtn_' + type, 'bulkCnt_' + type, 'allChk_' + type, 'editBtn_' + type);
     }
 
     // Unified Purchase / Sales Order search and filter
     function renderOrderFilter(type) {
-      const title=type==='PO'?'Purchase Order':'Sales Order';
+      const title=type==='PO'?'Purchase Order':type==='INV'?'Purchase Invoice':type==='SINV'?'Sales Invoice':'Sales Order';
       const groups=APP_DB.SUPPLIER_GROUPS_TREE||[];
       const flat=[]; (function walk(nodes){(nodes||[]).forEach(g=>{flat.push(g);walk(g.children||[]);});})(groups);
       el('mainContainer').innerHTML=`
@@ -2766,7 +2903,7 @@
     function clearOrderFilter(type) { ['ofFrom','ofTo','ofDoc','ofLedger','ofGroup'].forEach(id=>{const x=el(id);if(x)x.value='';}); generateOrderFilter(type); }
     function getOrderFilterRows(type) {
       let docs=(APP_DB[type]||[]).slice();
-      const from=el('ofFrom')?.value||'',to=el('ofTo')?.value||'';
+      const from=el('ofFrom')?.value||'',to=el('ofTo')?.value||'',month=el('ofMonth')?.value||'';
       if(from&&to&&from>to)return null;
       const doc=(el('ofDoc')?.value||'').trim().toLocaleLowerCase();
       const ledger=(el('ofLedger')?.value||'').trim().toLocaleLowerCase();
@@ -2781,7 +2918,8 @@
       }
       return docs.filter(d=>{
         const party=String(d.partyName||'').toLocaleLowerCase();
-        return (!from||String(d.date||'')>=from)&&(!to||String(d.date||'')<=to)&&(!doc||String(d.docNumber||'').toLocaleLowerCase().includes(doc))&&(!ledger||party.includes(ledger))&&(!allowed||allowed.has(party));
+        const dstr=String(d.date||'');
+        return (!from||dstr>=from)&&(!to||dstr<=to)&&(!month||dstr.slice(0,7)===month)&&(!doc||String(d.docNumber||'').toLocaleLowerCase().includes(doc))&&(!ledger||party.includes(ledger))&&(!allowed||allowed.has(party));
       });
     }
     function generateOrderFilter(type) {
@@ -2790,13 +2928,24 @@
       if(rows===null){area.innerHTML='<p style="padding:14px;color:#b91c1c">From Date, To Date-ஐ விட பின்னதாக இருக்கக்கூடாது.</p>';return;}
       rows.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.docNumber||'').localeCompare(String(a.docNumber||'')));
       const sum=rows.reduce((n,r)=>n+Number(r.grandTotal||0),0);
-      area.innerHTML=`<p style="font-size:13px;font-weight:700;margin:8px 0">கிடைத்த பதிவுகள்: ${rows.length} &nbsp; | &nbsp; மொத்த தொகை: ${fmt(sum)}</p><div style="overflow:auto"><table class="items-table" id="orderFilterTable"><thead><tr><th>#</th><th>Doc No</th><th>Date</th><th>Ledger Name</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Grand Total</th><th>Action</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td style="font-weight:700;color:#a16207">${escH(r.docNumber||'')}</td><td>${escH(r.date||'')}</td><td>${escH(r.partyName||'')}</td><td style="text-align:right">${fmt(r.subtotal)}</td><td style="text-align:right">${fmt(Number(r.cgst||0)+Number(r.sgst||0))}</td><td style="text-align:right;font-weight:700">${fmt(r.grandTotal)}</td><td style="white-space:nowrap"><button class="btn btn-sm btn-print" onclick="printSingleDoc('${type}','${r.id}')">🖨️</button> <button class="btn btn-sm btn-save" onclick="openGenericModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteGenericDoc('${type}','${r.id}'))generateOrderFilter('${type}')">🗑️</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>'}</tbody><tfoot>${rows.length?`<tr style="font-weight:800;background:#e2e8f0"><td colspan="6" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(sum)}</td><td></td></tr>`:''}</tfoot></table></div>`;
+      area.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0"><p style="font-size:13px;font-weight:700;margin:0">கிடைத்த பதிவுகள்: ${rows.length} &nbsp; | &nbsp; மொத்த தொகை: ${fmt(sum)}</p>
+        <button id="editBtn_of_${type}" class="btn btn-sm btn-save" style="display:none;background:#7c3aed;" onclick="(function(){const v=getSingleSelectedValue('chk-of-'+'${type}','Order');if(v!=null)openGenericModal('${type}','EDIT',v);})()">✏️ Edit Selected</button></div>
+        <div style="overflow:auto"><table class="items-table" id="orderFilterTable"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="allChk_of_${type}" class="row-check" onchange="toggleAllChecks('chk-of-${type}',this.checked,'','','allChk_of_${type}','editBtn_of_${type}')"></th>
+          <th>#</th><th>Doc No</th><th>Date</th><th>Ledger Name</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">Grand Total</th><th>Action</th></tr></thead>
+          <tbody>${rows.map((r,i)=>`<tr ondblclick="openGenericModal('${type}','EDIT','${r.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-of-${type}" value="${r.id}" onchange="bindMultiSelect('chk-of-${type}','','','allChk_of_${type}','editBtn_of_${type}')"></td>
+          <td>${i+1}</td><td style="font-weight:700;color:#a16207">${escH(r.docNumber||'')}</td><td>${escH(r.date||'')}</td><td>${escH(r.partyName||'')}</td>
+          <td style="text-align:right">${fmt(r.subtotal)}</td><td style="text-align:right">${fmt(Number(r.cgst||0)+Number(r.sgst||0))}</td><td style="text-align:right;font-weight:700">${fmt(r.grandTotal)}</td>
+          <td style="white-space:nowrap"><button class="btn btn-sm btn-print" onclick="printSingleDoc('${type}','${r.id}')">🖨️</button> <button class="btn btn-sm btn-save" onclick="openGenericModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteGenericDoc('${type}','${r.id}'))generateOrderFilter('${type}')">🗑️</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>'}</tbody>
+          <tfoot>${rows.length?`<tr style="font-weight:800;background:#e2e8f0"><td colspan="7" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(sum)}</td><td></td></tr>`:''}</tfoot></table></div>`;
     }
     function printOrderFilter(type) {
       const rows=getOrderFilterRows(type);if(rows===null)return alert('Date range சரிபார்க்கவும்.');if(!rows.length)return alert('Print செய்ய பதிவுகள் இல்லை.');
       const body=rows.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map((r,i)=>`<tr><td>${i+1}</td><td>${escH(r.docNumber||'')}</td><td>${escH(r.date||'')}</td><td>${escH(r.partyName||'')}</td><td style="text-align:right">${fmt(r.subtotal)}</td><td style="text-align:right">${fmt(Number(r.cgst||0)+Number(r.sgst||0))}</td><td style="text-align:right">${fmt(r.grandTotal)}</td></tr>`).join('');
       const sum=rows.reduce((n,r)=>n+Number(r.grandTotal||0),0);
-      triggerPrint(printHeaderHTML(type==='PO'?'PURCHASE ORDER FILTER REPORT':'SALES ORDER FILTER REPORT')+`<table class="items-table"><thead><tr><th>#</th><th>Doc No</th><th>Date</th><th>Ledger</th><th>Taxable</th><th>GST</th><th>Grand Total</th></tr></thead><tbody>${body}<tr><td colspan="6" style="text-align:right;font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${fmt(sum)}</td></tr></tbody></table>`);
+      const pTitle = type==='PO'?'PURCHASE ORDER FILTER REPORT':type==='INV'?'PURCHASE INVOICE FILTER REPORT':type==='SINV'?'SALES INVOICE FILTER REPORT':'SALES ORDER FILTER REPORT';
+      triggerPrint(printHeaderHTML(pTitle)+`<table class="items-table"><thead><tr><th>#</th><th>Doc No</th><th>Date</th><th>Ledger</th><th>Taxable</th><th>GST</th><th>Grand Total</th></tr></thead><tbody>${body}<tr><td colspan="6" style="text-align:right;font-weight:700">TOTAL</td><td style="text-align:right;font-weight:700">${fmt(sum)}</td></tr></tbody></table>`);
     }
 
     // Shared Date / Month / Doc / Ledger / Ledger Group filter for all transaction registers.
@@ -2866,17 +3015,40 @@
       const total=rows.reduce((n,r)=>n+Number((r.amount!=null?r.amount:r.grandTotal)||0),0);
       if(type==='CASH'||type==='BANK'){
         let bal=rows._opening||0,inTotal=0,outTotal=0;
-        const body=rows.map((r,i)=>{bal+=r.dr-r.cr;inTotal+=r.dr;outTotal+=r.cr;const bn=r.bankName||(APP_DB.BANK_ACCOUNTS||[]).find(b=>b.id===r.bankId)?.name||'-';return `<tr><td>${i+1}</td><td>${escH(r.date||'')}</td><td>${escH(r.docNumber||'')}</td><td>${escH(r.partyName||'')}</td><td>${escH(r.mode||'-')}</td>${type==='BANK'?`<td>${escH(bn)}</td>`:''}<td>${escH(r.narration||'-')}</td><td style="text-align:right">${r.dr?fmt(r.dr):'-'}</td><td style="text-align:right">${r.cr?fmt(r.cr):'-'}</td><td style="text-align:right;font-weight:700">${fmt(bal)}</td><td><button class="btn btn-sm btn-save" onclick="openVoucherModal('${r._kind}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${r._kind}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button></td></tr>`;}).join('');
-        area.innerHTML=`<p style="font-size:13px;font-weight:700;margin:8px 0">பதிவுகள்: ${rows.length} | வரவு: ${fmt(inTotal)} | செலவு: ${fmt(outTotal)} | இருப்பு: ${fmt(bal)}</p><div style="overflow:auto"><table class="items-table"><thead><tr><th>#</th><th>Date</th><th>Voucher No</th><th>Ledger</th><th>Mode</th>${type==='BANK'?'<th>Bank</th>':''}<th>Narration</th><th>In</th><th>Out</th><th>Balance</th><th>Action</th></tr></thead><tbody>${body||`<tr><td colspan="${type==='BANK'?11:10}" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>`}</tbody></table></div>`;
+        const body=rows.map((r,i)=>{bal+=r.dr-r.cr;inTotal+=r.dr;outTotal+=r.cr;const bn=r.bankName||(APP_DB.BANK_ACCOUNTS||[]).find(b=>b.id===r.bankId)?.name||'-';return `<tr ondblclick="openVoucherModal('${r._kind}','EDIT','${r.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-uf-${type}" value="${r._kind}|${r.id}" onchange="bindMultiSelect('chk-uf-${type}','','','allChk_uf_${type}','editBtn_uf_${type}')"></td>
+          <td>${i+1}</td><td>${escH(r.date||'')}</td><td>${escH(r.docNumber||'')}</td><td>${escH(r.partyName||'')}</td><td>${escH(r.mode||'-')}</td>${type==='BANK'?`<td>${escH(bn)}</td>`:''}<td>${escH(r.narration||'-')}</td><td style="text-align:right">${r.dr?fmt(r.dr):'-'}</td><td style="text-align:right">${r.cr?fmt(r.cr):'-'}</td><td style="text-align:right;font-weight:700">${fmt(bal)}</td>
+          <td><button class="btn btn-sm btn-save" onclick="openVoucherModal('${r._kind}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${r._kind}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button></td></tr>`;}).join('');
+        area.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0"><p style="font-size:13px;font-weight:700;margin:0">பதிவுகள்: ${rows.length} | வரவு: ${fmt(inTotal)} | செலவு: ${fmt(outTotal)} | இருப்பு: ${fmt(bal)}</p>
+          <button id="editBtn_uf_${type}" class="btn btn-sm btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedUnified('${type}')">✏️ Edit Selected</button></div>
+          <div style="overflow:auto"><table class="items-table"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="allChk_uf_${type}" class="row-check" onchange="toggleAllChecks('chk-uf-${type}',this.checked,'','','allChk_uf_${type}','editBtn_uf_${type}')"></th>
+          <th>#</th><th>Date</th><th>Voucher No</th><th>Ledger</th><th>Mode</th>${type==='BANK'?'<th>Bank</th>':''}<th>Narration</th><th>In</th><th>Out</th><th>Balance</th><th>Action</th></tr></thead>
+          <tbody>${body||`<tr><td colspan="${type==='BANK'?12:11}" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>`}</tbody></table></div>`;
         return;
       }
-      const body=rows.slice().reverse().map((r,i)=>{const amt=Number(r.amount!=null?r.amount:r.grandTotal||0);let actions='';
-        if(['INV','SINV','PO','SO'].includes(type))actions=`<button class="btn btn-sm btn-print" onclick="printSingleDoc('${type}','${r.id}')">🖨️</button> <button class="btn btn-sm btn-save" onclick="openGenericModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteGenericDoc('${type}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button>`;
-        else actions=`<button class="btn btn-sm btn-save" onclick="openVoucherModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${type}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button>`;
+      const body=rows.slice().reverse().map((r,i)=>{const amt=Number(r.amount!=null?r.amount:r.grandTotal||0);let actions='',editFn='';
+        if(['INV','SINV','PO','SO'].includes(type)){
+          actions=`<button class="btn btn-sm btn-print" onclick="printSingleDoc('${type}','${r.id}')">🖨️</button> <button class="btn btn-sm btn-save" onclick="openGenericModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteGenericDoc('${type}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button>`;
+          editFn=`openGenericModal('${type}','EDIT','${r.id}')`;
+        } else {
+          actions=`<button class="btn btn-sm btn-save" onclick="openVoucherModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${type}','${r.id}'))generateUnifiedFilter('${type}')">🗑️</button>`;
+          editFn=`openVoucherModal('${type}','EDIT','${r.id}')`;
+        }
         const tax=Number(r.cgst||0)+Number(r.sgst||0);
-        return `<tr><td>${i+1}</td><td>${escH(r.docNumber||'')}</td><td>${escH(r.date||'')}</td><td>${escH(r.partyName||'')}</td><td style="text-align:right">${fmt(r.subtotal||0)}</td><td style="text-align:right">${fmt(tax)}</td><td style="text-align:right;font-weight:700">${fmt(amt)}</td><td style="white-space:nowrap">${actions}</td></tr>`;
+        return `<tr ondblclick="${editFn}" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-uf-${type}" value="${r.id}" onchange="bindMultiSelect('chk-uf-${type}','','','allChk_uf_${type}','editBtn_uf_${type}')"></td>
+          <td>${i+1}</td><td>${escH(r.docNumber||'')}</td><td>${escH(r.date||'')}</td><td>${escH(r.partyName||'')}</td>
+          <td style="text-align:right">${fmt(r.subtotal||0)}</td><td style="text-align:right">${fmt(tax)}</td><td style="text-align:right;font-weight:700">${fmt(amt)}</td>
+          <td style="white-space:nowrap">${actions}</td></tr>`;
       }).join('');
-      area.innerHTML=`<p style="font-size:13px;font-weight:700;margin:8px 0">கிடைத்த பதிவுகள்: ${rows.length} | மொத்த தொகை: ${fmt(total)}</p><div style="overflow:auto"><table class="items-table"><thead><tr><th>#</th><th>Doc / Voucher No</th><th>Date</th><th>Ledger Name</th><th>Taxable</th><th>GST</th><th>Amount</th><th>Action</th></tr></thead><tbody>${body||'<tr><td colspan="8" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>'}</tbody><tfoot>${rows.length?`<tr style="font-weight:800;background:#e2e8f0"><td colspan="6" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(total)}</td><td></td></tr>`:''}</tfoot></table></div>`;
+      area.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0"><p style="font-size:13px;font-weight:700;margin:0">கிடைத்த பதிவுகள்: ${rows.length} | மொத்த தொகை: ${fmt(total)}</p>
+        <button id="editBtn_uf_${type}" class="btn btn-sm btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedUnified('${type}')">✏️ Edit Selected</button></div>
+        <div style="overflow:auto"><table class="items-table"><thead><tr>
+        <th style="width:36px"><input type="checkbox" id="allChk_uf_${type}" class="row-check" onchange="toggleAllChecks('chk-uf-${type}',this.checked,'','','allChk_uf_${type}','editBtn_uf_${type}')"></th>
+        <th>#</th><th>Doc / Voucher No</th><th>Date</th><th>Ledger Name</th><th>Taxable</th><th>GST</th><th>Amount</th><th>Action</th></tr></thead>
+        <tbody>${body||'<tr><td colspan="9" style="text-align:center;padding:24px">பதிவுகள் இல்லை</td></tr>'}</tbody>
+        <tfoot>${rows.length?`<tr style="font-weight:800;background:#e2e8f0"><td colspan="7" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(total)}</td><td></td></tr>`:''}</tfoot></table></div>`;
     }
     function printUnifiedFilter(type){
       const rows=getUnifiedFilterRows(type);if(rows===null)return alert('Date range சரிபார்க்கவும்.');if(!rows.length)return alert('Print செய்ய பதிவுகள் இல்லை.');
@@ -2916,10 +3088,7 @@
     }
 
     function filterPartiesByContext(list, ctx) {
-      const f = getPartyFilterForContext(ctx);
-      if (f === 'SUPPLIER') return list.filter(isSupplierLedger);
-      if (f === 'CUSTOMER') return list.filter(isCustomerLedger);
-      return list;
+      return list; /* ஒவ்வொரு Account-ம் எல்லா menu-விலும் காட்டப்படும் */
     }
 
     function handlePartySearch(inp, dropId, ctx) {
@@ -3078,12 +3247,26 @@
     }
 
     function saveItemRecord() {
-      const name = el('mMatName').value.trim(); if (!name) return alert("Enter Item Name!");
+      const name = el('mMatName').value.trim().replace(/\s+/g, ' '); if (!name) return alert("Enter Item Name!");
+      const dupM = APP_DB.MATERIALS.findIndex((m, i) => i !== editItemIdx && nameKey(m.name) === nameKey(name));
+      if (dupM > -1) {
+        const dn = APP_DB.MATERIALS[dupM].name;
+        alert('❌ Duplicate Item தடுக்கப்பட்டது!\n\n"' + dn + '" என்ற பெயரில் Item ஏற்கனவே Master-ல் உள்ளது.\nபுதிய duplicate உருவாக்க முடியாது. வேறு பெயர் கொடுக்கவும்.');
+        if (editItemIdx === null && targetItemRow && el('genericModal').classList.contains('active')) fillRowWithItem(targetItemRow, APP_DB.MATERIALS[dupM]);
+        if (editItemIdx === null) closeModal('newMaterialModal');
+        return;
+      }
       const groupId = el('mMatGroup').value || null;
       let gst = parseFloat(el('mMatGst').value) || 0;
       if (isNoTaxGroupId(groupId)) gst = 0;
       const rec = { name, alias: el('mMatAlias').value.trim(), groupId, hsn: el('mMatHsn').value.trim(), purchaseRate: parseFloat(el('mMatPurchaseRate').value) || 0, salesRate: parseFloat(el('mMatSalesRate').value) || 0, gst, unit: el('mMatUnit').value.trim() || 'Unit' };
-      if (editItemIdx !== null) APP_DB.MATERIALS[editItemIdx] = rec; else APP_DB.MATERIALS.push(rec);
+      if (editItemIdx !== null) {
+        const old = APP_DB.MATERIALS[editItemIdx] || {};
+        APP_DB.MATERIALS[editItemIdx] = { ...old, ...rec, openingQty: old.openingQty != null ? old.openingQty : 0 };
+      } else {
+        rec.openingQty = 0;
+        APP_DB.MATERIALS.push(rec);
+      }
       saveDB();
       if (targetItemRow && el('genericModal').classList.contains('active')) fillRowWithItem(targetItemRow, rec);
       closeModal('newMaterialModal');
@@ -3091,6 +3274,7 @@
     }
 
     function renderItemList() {
+      autoMergeNameDuplicates('MATERIALS');
       // Alphabetical by item name
       const mats = APP_DB.MATERIALS.slice().sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
@@ -3102,14 +3286,17 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
           <div>
             <h2 class="page-title">2.c Item Master List (<span id="itemListCount">${mats.length}</span>)</h2>
-            <p class="section-subtitle">🔍 பெயர் தேடல் (முதல் 5 எழுத்து) → Edit | ☑️ Multi-Select → Group filter மட்டும்</p>
+            <p class="section-subtitle">🔍 பெயர் தேடல் → ☑️ ஒரு Item Select → ✏️ Edit Selected (Full) · Multi-Field Edit · Row ✏️ / Double-click</p>
           </div>
           <div>
             <button id="bulkBtn_ITEM" class="btn btn-bulk" onclick="bulkDelItems()">
               🗑️ Delete Selected (<span id="bulkCnt_ITEM">0</span>)
             </button>
+            <button id="editBtn_ITEM" class="btn btn-save" style="display:none;background:#2563eb;" onclick="editSelectedItem()">
+              ✏️ Edit Selected (Full)
+            </button>
             <button id="bulkEditBtn_ITEM" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="openBulkEditItems()">
-              ✏️ Edit Selected (<span id="bulkEditCnt_ITEM">0</span>)
+              ✏️ Multi-Field Edit (<span id="bulkEditCnt_ITEM">0</span>)
             </button>
             <button class="btn btn-convert" onclick="openBulkModal()">📥 Excel Bulk Import</button>
             <button class="btn btn-print" onclick="copySelectedItemsToExcel()">📋 Copy Selected to Excel</button>
@@ -3122,7 +3309,7 @@
         <div class="filter-bar" style="margin-bottom:12px;">
           <label style="font-size:12.5px;font-weight:600;">🔍 Item தேடல்:</label>
           <input type="text" id="itemSearchInput" class="form-control" style="width:260px;"
-            placeholder="முதல் 5 எழுத்து / Alias type செய்யவும்..."
+            placeholder="முதல் 10 எழுத்து / Alias type செய்யவும்..."
             oninput="filterItemList()" autocomplete="off">
           <label style="font-size:12.5px;font-weight:600;margin-left:8px;">📁 Group (Multi-Select):</label>
           <select id="itemGroupFilter" class="form-control" style="width:200px;" onchange="filterItemList()">
@@ -3155,7 +3342,8 @@
               <tr class="item-row" data-idx="${oi}"
                   data-name="${escH((m.name||'').toLowerCase())}"
                   data-alias="${escH((m.alias||'').toLowerCase())}"
-                  data-group="${m.groupId || '__NONE__'}">
+                  data-group="${m.groupId || '__NONE__'}"
+                  ondblclick="openItemModal('',null,${oi})" title="Double-click = Edit">
                 <td>
                   <input type="checkbox" class="row-check chk-item" value="${oi}" onchange="bindMultiSelect('chk-item','bulkBtn_ITEM','bulkCnt_ITEM','allChk_ITEM'); updateBulkEditBtn();">
                 </td>
@@ -3165,7 +3353,7 @@
                 <td>${escH(tree.find(g => g.id === m.groupId)?.name || 'Primary')}</td>
                 <td>${escH(m.hsn || '-')}</td>
                 <td>${escH(m.unit)}</td>
-                <td style="text-align:center;background:#fffbeb">${fmt(Number(m.openingQty||0))}</td>
+                <td style="text-align:center;background:#fffbeb">${fmtQty(m.openingQty)}</td>
                 <td style="text-align:center;font-weight:800;color:#15803d">${fmtItemStock(m)}</td>
                 <td style="text-align:right">${fmt(m.purchaseRate)}</td>
                 <td style="text-align:right">${fmt(m.salesRate)}</td>
@@ -3279,6 +3467,8 @@
         btn.style.display = checked.length > 0 ? 'inline-block' : 'none';
         if (cnt) cnt.innerText = checked.length;
       }
+      const singleBtn = el('editBtn_ITEM');
+      if (singleBtn) singleBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
     }
 
     function openBulkEditItems() {
@@ -3387,7 +3577,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       el('bulkPreviewTableBody').innerHTML = bulkList.map((it, i) => `<tr>
         <td>${i+1}</td><td><strong>${escH(it.name)}</strong></td><td>${escH(it.alias||'-')}</td>
         <td>${escH(it.grp||'Default')}</td><td>${escH(it.hsn)}</td><td>${escH(it.unit)}</td>
-        <td><input type="number" min="0" step="any" value="${Number(it.openingQty)||0}" style="width:90px;text-align:right" onchange="bulkList[${i}].openingQty=Math.max(0,Number(this.value)||0)"></td>
+        <td style="text-align:right;background:#fffbeb"><input type="number" min="0" step="any" value="${Number(it.openingQty)||0}" style="width:100px;text-align:right;font-weight:700" onchange="bulkList[${i}].openingQty=Math.max(0,Number(this.value)||0)"></td>
         <td>${fmt(it.pr)}</td><td>${fmt(it.sr)}</td><td>${escH(it.gst)}%</td>
         <td><span class="badge-path">${it.exists?'Update':'New'}</span></td></tr>`).join('');
       el('bulkPreviewSummaryText').innerText = `Preview: ${bulkList.length} Items Ready`;
@@ -3405,8 +3595,14 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
           gId = g.id;
         }
         const idx = APP_DB.MATERIALS.findIndex(m => m.name.toLowerCase() === it.name.toLowerCase());
-        const rec = { name: it.name, alias: it.alias, groupId: gId, hsn: it.hsn, unit: it.unit || 'Unit', openingQty: Number(it.openingQty)||0, purchaseRate: it.pr, salesRate: it.sr, gst: it.gst };
-        if (idx > -1) { if (upd) APP_DB.MATERIALS[idx] = rec; } else APP_DB.MATERIALS.push(rec);
+        const oq = Math.max(0, Number(it.openingQty) || 0);
+        const rec = { name: it.name, alias: it.alias, groupId: gId, hsn: it.hsn, unit: it.unit || 'Unit', openingQty: oq, purchaseRate: it.pr, salesRate: it.sr, gst: it.gst };
+        if (idx > -1) {
+          if (upd) {
+            const prev = APP_DB.MATERIALS[idx] || {};
+            APP_DB.MATERIALS[idx] = { ...prev, ...rec, openingQty: oq };
+          }
+        } else APP_DB.MATERIALS.push(rec);
       });
       saveDB(); closeModal('bulkMaterialModal'); renderItemList();
     }
@@ -3418,6 +3614,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       el('autoOpenBanner').style.display = isAuto ? 'block' : 'none';
       if (editIdx !== null) {
         const s = APP_DB.SUPPLIERS[editIdx];
+        el('supModalTitle').innerText = 'Edit Account';
         el('mSupplierGroup').value = s.groupId; el('mSupplierName').value = s.name;
         el('mSupplierAddress').value = s.address || ''; el('mSupplierGst').value = s.gst || '';
         el('mSupplierPhone').value = s.phone || ''; el('mSupplierBalance').value = s.balance || 0;
@@ -3425,6 +3622,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         el('mSupBankIfsc').value = s.bankIfsc || ''; el('mSupBankName').value = s.bankName || '';
         el('mSupBankCity').value = s.bankCity || '';
       } else {
+        el('supModalTitle').innerText = 'Add Account';
         el('mSupplierName').value = prefill; el('mSupplierAddress').value = ''; el('mSupplierGst').value = '';
         el('mSupplierPhone').value = ''; el('mSupplierBalance').value = 0;
         el('mSupBankAccName').value = ''; el('mSupBankAccNo').value = ''; el('mSupBankIfsc').value = '';
@@ -3434,7 +3632,18 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     }
 
     function saveSupplierRecord() {
-      const name = el('mSupplierName').value.trim(); if (!name) return alert("Enter Name!");
+      const name = el('mSupplierName').value.trim().replace(/\s+/g, ' '); if (!name) return alert("Enter Name!");
+      const dupI = APP_DB.SUPPLIERS.findIndex((a, i) => i !== editSupIdx && nameKey(a.name) === nameKey(name));
+      if (dupI > -1) {
+        const ex = APP_DB.SUPPLIERS[dupI];
+        alert('❌ Duplicate Account தடுக்கப்பட்டது!\n\n"' + ex.name + '" என்ற பெயரில் Account ஏற்கனவே Master-ல் உள்ளது.\nபுதிய duplicate உருவாக்க முடியாது. வேறு பெயர் கொடுக்கவும்.');
+        if (editSupIdx === null) {
+          if (el('genericModal').classList.contains('active')) { el('partyNameInput').value = ex.name; el('partyAddressInput').value = ex.address || ''; }
+          if (el('voucherModal').classList.contains('active')) el('vPartyName').value = ex.name;
+          closeModal('newSupplierModal');
+        }
+        return;
+      }
       const rec = {
         name,
         groupId: el('mSupplierGroup').value,
@@ -3449,6 +3658,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         bankCity: el('mSupBankCity').value.trim()
       };
       if (editSupIdx !== null) APP_DB.SUPPLIERS[editSupIdx] = rec; else APP_DB.SUPPLIERS.push(rec);
+      accSearchText = ''; accSelectedGroup = '';
       saveDB();
       if (el('genericModal').classList.contains('active')) { el('partyNameInput').value = name; el('partyAddressInput').value = rec.address; }
       if (el('voucherModal').classList.contains('active')) el('vPartyName').value = name;
@@ -3456,20 +3666,88 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       if (!el('genericModal').classList.contains('active') && !el('voucherModal').classList.contains('active')) renderAccountList();
     }
 
-    let accSearchText='',accSelectedGroups=[];
-    function filterAccountList(){accSearchText=(el('accSearchInput')?.value||'').trim().toLowerCase();accSelectedGroups=Array.from(el('accGroupFilter')?.selectedOptions||[]).map(o=>o.value);renderAccountList();}
-    function clearAccountFilters(){if(el('accSearchInput'))el('accSearchInput').value='';if(el('accGroupFilter'))Array.from(el('accGroupFilter').options).forEach(o=>o.selected=false);accSearchText='';accSelectedGroups=[];renderAccountList();}
-    function renderAccountList(){const tree=APP_DB.SUPPLIER_GROUPS_TREE;let sups=(APP_DB.SUPPLIERS||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));if(accSearchText)sups=sups.filter(a=>(a.name||'').toLowerCase().startsWith(accSearchText));if(accSelectedGroups.length)sups=sups.filter(a=>accSelectedGroups.includes(a.groupId)||(accSelectedGroups.includes('__NONE__')&&!a.groupId));
-      el('mainContainer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div><h2 class="page-title">3.b Account Master List (<span id="accListCount">${sups.length}</span>)</h2><p class="section-subtitle">🔍 பெயர் தேடல் (முதல் 5 எழுத்து) → Edit | ☑️ Multi-Select → Group filter</p></div><div><button id="bulkBtn_ACC" class="btn btn-bulk" onclick="bulkDelAccounts()">🗑️ Delete Selected (<span id="bulkCnt_ACC">0</span>)</button><button id="bulkEditBtn_ACC" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="openBulkEditAccounts()">✏️ Edit Selected (<span id="bulkEditCnt_ACC">0</span>)</button><button class="btn btn-save" onclick="openSupplierModal()">+ Add Account</button><button class="btn btn-convert" onclick="openBulkAccountModal()">📥 Excel Bulk Import</button><button class="btn btn-print" onclick="copySelectedAccountsToExcel()">📋 Copy Selected to Excel</button><button class="btn btn-print" onclick="copyAllAccountsToExcel()">📋 Copy All Accounts</button><button class="btn btn-print" onclick="printSimpleTable('ACCOUNT BALANCES','accMasterTbl')">🖨️ Print All</button><button class="btn btn-cancel" onclick="showDashboard()">← Back</button></div></div>
-      <div class="filter-bar" style="margin-bottom:12px;"><label style="font-size:12.5px;font-weight:600;">🔍 Account தேடல்:</label><input type="text" id="accSearchInput" class="form-control" style="width:260px;" placeholder="முதல் 5 எழுத்து type செய்யவும்..." oninput="filterAccountList()" value="${escH(accSearchText)}"><label style="font-size:12.5px;font-weight:600;margin-left:8px;">📁 Group (Multi-Select):</label><select id="accGroupFilter" class="form-control" style="width:220px;height:90px;" multiple onchange="filterAccountList()"><option value="__NONE__">Primary (No Group)</option>${tree.map(g=>`<option value="${g.id}" ${accSelectedGroups.includes(g.id)?'selected':''}>${escH(getBreadcrumb(tree,g.id))}</option>`).join('')}</select><button class="btn btn-sm btn-cancel" onclick="clearAccountFilters()">Clear</button></div>
-      <table class="items-table" id="accMasterTbl"><thead><tr><th style="width:36px"><input type="checkbox" id="allChk_ACC" class="row-check" onchange="toggleAllChecks('chk-acc',this.checked,'bulkBtn_ACC','bulkCnt_ACC','allChk_ACC');updateBulkEditAccBtn()"></th><th>#</th><th>Account Name</th><th>Group</th><th>Address</th><th>GSTIN</th><th>Phone</th><th style="text-align:right">Closing Balance</th><th style="text-align:center">Action</th></tr></thead><tbody>${sups.map(a=>{const i=(APP_DB.SUPPLIERS||[]).indexOf(a);const b=calcPartyBal(a);return `<tr><td><input type="checkbox" class="row-check chk-acc" value="${i}" onchange="bindMultiSelect('chk-acc','bulkBtn_ACC','bulkCnt_ACC','allChk_ACC');updateBulkEditAccBtn()"></td><td>${i+1}</td><td><strong>${escH(a.name)}</strong></td><td><span class="badge-path">${escH(getAccountGroupName(a.groupId)||'Primary')}</span></td><td>${escH(a.address||'-')}</td><td>${escH(a.gst||'-')}</td><td>${escH(a.phone||'-')}</td><td style="text-align:right;font-weight:700">${fmt(b.amount)} ${b.type}</td><td style="text-align:center"><button class="btn btn-sm btn-print" onclick="renderPartyLedger(${jsArg(a.name||'')})">📜 Statement</button><button class="btn btn-sm btn-save" onclick="openSupplierModal('',false,${i})">✏️</button><button class="btn btn-sm btn-delete" onclick="deleteAccountByIndex(${i})">🗑️</button></td></tr>`;}).join('')||`<tr><td colspan="9" style="text-align:center;padding:30px">கணக்குகள் இல்லை</td></tr>`}</tbody></table>`;updateBulkEditAccBtn();}
+    let accSearchText='', accSelectedGroup='';
+    function filterAccountList(){
+      accSearchText = (el('accSearchInput')?.value || '').trim().toLowerCase();
+      accSelectedGroup = el('accGroupFilter')?.value || '';
+      renderAccountList();
+    }
+    function clearAccountFilters(){
+      if (el('accSearchInput')) el('accSearchInput').value = '';
+      if (el('accGroupFilter')) el('accGroupFilter').value = '';
+      accSearchText = '';
+      accSelectedGroup = '';
+      renderAccountList();
+    }
+    function renderAccountList(){
+      autoMergeNameDuplicates('SUPPLIERS');
+      const tree=APP_DB.SUPPLIER_GROUPS_TREE;
+      let sups=(APP_DB.SUPPLIERS||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+      if(accSearchText)sups=sups.filter(a=>{
+        const n=(a.name||'').toLowerCase();
+        return n.includes(accSearchText) || n.startsWith(accSearchText);
+      });
+      if(accSelectedGroup){
+        if(accSelectedGroup==='__NONE__')sups=sups.filter(a=>!a.groupId);
+        else sups=sups.filter(a=>a.groupId===accSelectedGroup);
+      }
+      el('mainContainer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div><h2 class="page-title">3.b Account Master List (<span id="accListCount">${sups.length}</span>)</h2><p class="section-subtitle">🔍 பெயர் தேடல் → ☑️ ஒரு Account Select → ✏️ Edit Selected (Full) · Multi-Field Edit · Row ✏️ / Double-click</p></div><div><button id="bulkBtn_ACC" class="btn btn-bulk" onclick="bulkDelAccounts()">🗑️ Delete Selected (<span id="bulkCnt_ACC">0</span>)</button><button id="editBtn_ACC" class="btn btn-save" style="display:none;background:#2563eb;" onclick="editSelectedAccount()">✏️ Edit Selected (Full)</button><button id="bulkEditBtn_ACC" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="openBulkEditAccounts()">✏️ Multi-Field Edit (<span id="bulkEditCnt_ACC">0</span>)</button><button class="btn btn-save" onclick="openSupplierModal()">+ Add Account</button><button class="btn btn-convert" onclick="openBulkAccountModal()">📥 Excel Bulk Import</button><button class="btn btn-print" onclick="copySelectedAccountsToExcel()">📋 Copy Selected to Excel</button><button class="btn btn-print" onclick="copyAllAccountsToExcel()">📋 Copy All Accounts</button><button class="btn btn-print" onclick="printSimpleTable('ACCOUNT BALANCES','accMasterTbl')">🖨️ Print All</button><button class="btn btn-cancel" onclick="showDashboard()">← Back</button></div></div>
+      <div class="filter-bar" style="margin-bottom:12px;"><label style="font-size:12.5px;font-weight:600;">🔍 Account தேடல்:</label><input type="text" id="accSearchInput" class="form-control" style="width:280px;" placeholder="முதல் 10 எழுத்து / பெயர் type செய்யவும்..." oninput="filterAccountList()" value="${escH(accSearchText)}"><label style="font-size:12.5px;font-weight:600;margin-left:8px;">📁 Group:</label><select id="accGroupFilter" class="form-control" style="width:240px;" onchange="filterAccountList()"><option value="">-- அனைத்து Groups --</option><option value="__NONE__" ${accSelectedGroup==='__NONE__'?'selected':''}>Primary (No Group)</option>${tree.map(g=>`<option value="${g.id}" ${accSelectedGroup===g.id?'selected':''}>${escH(getBreadcrumb(tree,g.id))}</option>`).join('')}</select><button class="btn btn-sm btn-cancel" onclick="clearAccountFilters()">Clear</button></div>
+      <table class="items-table" id="accMasterTbl"><thead><tr><th style="width:36px"><input type="checkbox" id="allChk_ACC" class="row-check" onchange="toggleAllChecks('chk-acc',this.checked,'bulkBtn_ACC','bulkCnt_ACC','allChk_ACC','editBtn_ACC');updateBulkEditAccBtn()"></th><th>#</th><th>Account Name</th><th>Group</th><th>Address</th><th>GSTIN</th><th>Phone</th><th style="text-align:right">Closing Balance</th><th style="text-align:center">Action</th></tr></thead><tbody>${sups.map(a=>{const i=(APP_DB.SUPPLIERS||[]).indexOf(a);const b=calcPartyBal(a);return `<tr ondblclick="openSupplierModal('',false,${i})" title="Double-click = Edit"><td><input type="checkbox" class="row-check chk-acc" value="${i}" onchange="bindMultiSelect('chk-acc','bulkBtn_ACC','bulkCnt_ACC','allChk_ACC','editBtn_ACC');updateBulkEditAccBtn()"></td><td>${i+1}</td><td><strong>${escH(a.name)}</strong></td><td><span class="badge-path">${escH(getAccountGroupName(a.groupId)||'Primary')}</span></td><td>${escH(a.address||'-')}</td><td>${escH(a.gst||'-')}</td><td>${escH(a.phone||'-')}</td><td style="text-align:right;font-weight:700">${fmt(b.amount)} ${b.type}</td><td style="text-align:center"><button class="btn btn-sm btn-print" onclick="renderPartyLedger(${jsArg(a.name||'')})">📜 Statement</button><button class="btn btn-sm btn-save" onclick="openSupplierModal('',false,${i})">✏️</button><button class="btn btn-sm btn-delete" onclick="deleteAccountByIndex(${i})">🗑️</button></td></tr>`;}).join('')||`<tr><td colspan="9" style="text-align:center;padding:30px">கணக்குகள் இல்லை</td></tr>`}</tbody></table>`;updateBulkEditAccBtn();}
     
-    function updateBulkEditAccBtn(){const checked=document.querySelectorAll('.chk-acc:checked');const btn=el('bulkEditBtn_ACC'),cnt=el('bulkEditCnt_ACC');if(btn){btn.style.display=checked.length?'inline-block':'none';if(cnt)cnt.innerText=checked.length;}}
+    function updateBulkEditAccBtn(){const checked=document.querySelectorAll('.chk-acc:checked');const btn=el('bulkEditBtn_ACC'),cnt=el('bulkEditCnt_ACC');if(btn){btn.style.display=checked.length?'inline-block':'none';if(cnt)cnt.innerText=checked.length;}const singleBtn=el('editBtn_ACC');if(singleBtn)singleBtn.style.display=checked.length===1?'inline-block':'none';}
     function buildAccountsExportText(separator,onlyIndexes=null){const source=(APP_DB.SUPPLIERS||[]).map((a,i)=>({a,i})).filter(x=>!onlyIndexes||onlyIndexes.has(x.i));const rows=source.map(({a})=>[a.name||'',getAccountGroupName(a.groupId),a.address||'',a.gst||'',a.phone||'',a.balance??0]);const esc=v=>{v=String(v??'');return separator===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return ['Account Name,Group Name,Address,GSTIN,Phone,Opening Balance'].concat(rows.map(r=>r.map(esc).join(separator))).join('\n');}
     async function copySelectedAccountsToExcel(){const idxs=new Set(Array.from(document.querySelectorAll('.chk-acc:checked')).map(c=>parseInt(c.value,10)));if(!idxs.size)return alert('Copy செய்ய குறைந்தது ஒரு Account-ஐ தேர்ந்தெடுக்கவும்!');await copyTextToClipboard(buildAccountsExportText('\t',idxs),idxs.size+' selected Accounts Excel-க்கு Copy செய்யப்பட்டன.');}
     async function copyAllAccountsToExcel(){if(!(APP_DB.SUPPLIERS||[]).length)return alert('Copy செய்ய Account எதுவும் இல்லை.');await copyTextToClipboard(buildAccountsExportText('\t'),'அனைத்து Accounts உம் Copy செய்யப்பட்டன.');}
     function openBulkAccountModal(){populateGrpSelect('bulkAccDefaultGroup','SUPPLIER_GROUPS_TREE','SG_SUPPLIER');el('bulkAccPaste').value='';el('bulkAccUpdateExisting').checked=true;el('bulkAccountModal').classList.add('active');}
-    async function confirmBulkAccountImport(){const lines=el('bulkAccPaste').value.trim().split(/\r?\n/).filter(l=>l.trim());if(!lines.length)return alert('Excel-ல் copy செய்த வரிசைகளை paste செய்யவும்.');const defGroup=el('bulkAccDefaultGroup').value||'SG_SUPPLIER';const updateExisting=el('bulkAccUpdateExisting').checked;let added=0,updated=0;lines.forEach((l,i)=>{const c=l.includes('\t')?l.split('\t').map(x=>x.trim()):l.split(',').map(x=>x.trim());if(!c[0]||(i===0&&/account|name/i.test(c[0])))return;const rec={name:c[0],groupId:defGroup,address:c[2]||'',gst:c[3]||'',phone:c[4]||'',balance:parseFloat(String(c[5]||'0').replace(/[^0-9.-]/g,''))||0};const idx=(APP_DB.SUPPLIERS||[]).findIndex(a=>(a.name||'').toLowerCase()===rec.name.toLowerCase());if(idx>-1&&updateExisting){APP_DB.SUPPLIERS[idx]={...APP_DB.SUPPLIERS[idx],...rec};updated++;}else if(idx===-1){APP_DB.SUPPLIERS.push(rec);added++;}});saveDB();closeModal('bulkAccountModal');accSearchText='';accSelectedGroups=[];renderAccountList();alert('Import முடிந்தது.\nபுதிய Accounts: '+added+'\nUpdate செய்யப்பட்ட Accounts: '+updated);}
+    async function confirmBulkAccountImport(){
+      const lines = el('bulkAccPaste').value.trim().split(/\r?\n/).filter(l => l.trim());
+      if (!lines.length) return alert('Excel-ல் copy செய்த வரிசைகளை paste செய்யவும்.');
+      const defGroup = el('bulkAccDefaultGroup').value || 'SG_SUPPLIER';
+      const updateExisting = el('bulkAccUpdateExisting').checked;
+      let added = 0, updated = 0, skipped = 0;
+      if (!APP_DB.SUPPLIERS) APP_DB.SUPPLIERS = [];
+      if (!APP_DB.SUPPLIER_GROUPS_TREE) APP_DB.SUPPLIER_GROUPS_TREE = [];
+      lines.forEach((l, i) => {
+        const c = l.includes('\t') ? l.split('\t').map(x => x.trim()) : l.split(',').map(x => x.trim());
+        if (!c[0] || (i === 0 && /account|name/i.test(c[0]))) return;
+        // Resolve group from Excel column 2 (Group Name); fallback to Default Group
+        let groupId = defGroup;
+        const grpName = (c[1] || '').trim();
+        if (grpName) {
+          let g = APP_DB.SUPPLIER_GROUPS_TREE.find(x => nameKey(x.name) === nameKey(grpName));
+          if (!g) {
+            g = { id: 'SG_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name: grpName, parentId: null };
+            APP_DB.SUPPLIER_GROUPS_TREE.push(g);
+          }
+          groupId = g.id;
+        }
+        const rec = {
+          name: c[0].trim().replace(/\s+/g, ' '),
+          groupId,
+          address: c[2] || '',
+          gst: c[3] || '',
+          phone: c[4] || '',
+          balance: parseFloat(String(c[5] || '0').replace(/[^0-9.-]/g, '')) || 0
+        };
+        const idx = APP_DB.SUPPLIERS.findIndex(a => nameKey(a.name) === nameKey(rec.name));
+        if (idx > -1) {
+          if (updateExisting) {
+            APP_DB.SUPPLIERS[idx] = { ...APP_DB.SUPPLIERS[idx], ...rec };
+            updated++;
+          } else skipped++;
+        } else {
+          APP_DB.SUPPLIERS.push(rec);
+          added++;
+        }
+      });
+      saveDB();
+      closeModal('bulkAccountModal');
+      accSearchText = '';
+      accSelectedGroup = '';
+      renderAccountList();
+      alert('Import முடிந்தது.\nபுதிய Accounts: ' + added + '\nUpdate: ' + updated + (skipped ? ('\nSkip (duplicate): ' + skipped) : ''));
+    }
     function openBulkEditAccounts(){const checked=Array.from(document.querySelectorAll('.chk-acc:checked'));if(!checked.length)return alert('குறைந்தது ஒரு Account-ஐ தேர்ந்தெடுக்கவும்!');el('bulkAccEditCount').innerText=checked.length;populateGrpSelect('beAccGroup','SUPPLIER_GROUPS_TREE');['beAccGroupChk','beAccGstChk','beAccPhoneChk','beAccAddressChk','beAccBalanceChk'].forEach(id=>el(id).checked=false);['beAccGst','beAccPhone','beAccAddress','beAccBalance'].forEach(id=>el(id).value='');el('bulkEditAccountModal').classList.add('active');}
     function applyBulkEditAccounts(){const idxs=Array.from(document.querySelectorAll('.chk-acc:checked')).map(c=>parseInt(c.value,10));if(!idxs.length)return alert('Account எதுவும் தேர்ந்தெடுக்கப்படவில்லை.');idxs.forEach(i=>{const a=APP_DB.SUPPLIERS[i];if(!a)return;if(el('beAccGroupChk').checked)a.groupId=el('beAccGroup').value||a.groupId;if(el('beAccGstChk').checked)a.gst=el('beAccGst').value.trim();if(el('beAccPhoneChk').checked)a.phone=el('beAccPhone').value.trim();if(el('beAccAddressChk').checked)a.address=el('beAccAddress').value.trim();if(el('beAccBalanceChk').checked)a.balance=parseFloat(el('beAccBalance').value)||0;});saveDB();closeModal('bulkEditAccountModal');renderAccountList();alert('Selected Accounts update செய்யப்பட்டன.');}
     function bulkDelAccounts() {
@@ -3526,12 +3804,22 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     function renderGroupList(type) {
       const key = type === 'MATERIAL' ? 'MATERIAL_GROUPS_TREE' : 'SUPPLIER_GROUPS_TREE', tree = APP_DB[key];
       el('mainContainer').innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
           <h2 class="page-title">${type === 'MATERIAL' ? 'Item Groups' : 'Account Groups'}</h2>
-          <div><button class="btn btn-save" onclick="openGroupModal('${type}')">+ New Group</button> <button class="btn btn-cancel" onclick="showDashboard()">← Back</button></div>
+          <div>
+            <button id="editBtn_grp_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedGroup('${type}')">✏️ Edit Selected</button>
+            <button class="btn btn-save" onclick="openGroupModal('${type}')">+ New Group</button>
+            <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
+          </div>
         </div>
-        <table class="items-table"><thead><tr><th>#</th><th>Group Name</th><th>Hierarchy Path</th><th style="text-align:center">Action</th></tr></thead>
-        <tbody>${tree.map((g, i) => `<tr><td>${i+1}</td><td><strong>${escH(g.name)}</strong></td><td><span class="badge-path">${escH(getBreadcrumb(tree, g.id))}</span></td><td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openGroupModal('${type}','${g.id}')">✏️</button> ${['SG_SUPPLIER','SG_CUSTOMER','SG_SUNDRY_CREDITORS','SG_SUNDRY_DEBTORS'].includes(g.id)?'':`<button class="btn btn-sm btn-delete" onclick="APP_DB['${key}']=APP_DB['${key}'].filter(x=>x.id!=='${g.id}');saveDB();renderGroupList('${type}')">🗑️</button>`}</td></tr>`).join('')}</tbody></table>`;
+        <p class="section-subtitle">☑️ ஒரு Group Select → Edit Selected · அல்லது ✏️ / Double-click</p>
+        <table class="items-table"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="allChk_grp_${type}" class="row-check" onchange="toggleAllChecks('chk-grp-${type}',this.checked,'','','allChk_grp_${type}','editBtn_grp_${type}')"></th>
+          <th>#</th><th>Group Name</th><th>Hierarchy Path</th><th style="text-align:center">Action</th></tr></thead>
+        <tbody>${tree.map((g, i) => `<tr ondblclick="openGroupModal('${type}','${g.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-grp-${type}" value="${g.id}" onchange="bindMultiSelect('chk-grp-${type}','','','allChk_grp_${type}','editBtn_grp_${type}')"></td>
+          <td>${i+1}</td><td><strong>${escH(g.name)}</strong></td><td><span class="badge-path">${escH(getBreadcrumb(tree, g.id))}</span></td>
+          <td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openGroupModal('${type}','${g.id}')">✏️</button> ${['SG_SUPPLIER','SG_CUSTOMER','SG_SUNDRY_CREDITORS','SG_SUNDRY_DEBTORS'].includes(g.id)?'':`<button class="btn btn-sm btn-delete" onclick="APP_DB['${key}']=APP_DB['${key}'].filter(x=>x.id!=='${g.id}');saveDB();renderGroupList('${type}')">🗑️</button>`}</td></tr>`).join('')}</tbody></table>`;
     }
 
     function onVoucherModeChange() {
@@ -3552,25 +3840,25 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       const amt = parseFloat(el('vAmount')?.value) || 0;
       const amtStr = amt ? amt.toFixed(2) : '';
       const narr = (el('vNarration')?.value || '').trim();
-      // Busy-style: Credit Note → Dr Party / Cr CREDIT NOTE ; Debit Note → Dr DEBIT NOTE / Cr Party
+      // Busy-style: Credit Note → Dr CREDIT NOTE / Cr Party ; Debit Note → Dr Party / Cr DEBIT NOTE
       if (t === 'CN') {
+        body.innerHTML = `
+          <tr>
+            <td>1</td><td style="font-weight:700;color:#b91c1c">D</td><td><strong>CREDIT NOTE</strong></td>
+            <td style="text-align:right;font-weight:700">${amtStr}</td><td></td><td>${narr}</td>
+          </tr>
+          <tr>
+            <td>2</td><td style="font-weight:700;color:#15803d">C</td><td><strong>${escH(party)}</strong></td>
+            <td></td><td style="text-align:right;font-weight:700">${amtStr}</td><td>${narr}</td>
+          </tr>`;
+      } else {
         body.innerHTML = `
           <tr>
             <td>1</td><td style="font-weight:700;color:#b91c1c">D</td><td><strong>${escH(party)}</strong></td>
             <td style="text-align:right;font-weight:700">${amtStr}</td><td></td><td>${narr}</td>
           </tr>
           <tr>
-            <td>2</td><td style="font-weight:700;color:#15803d">C</td><td><strong>CREDIT NOTE</strong></td>
-            <td></td><td style="text-align:right;font-weight:700">${amtStr}</td><td>${narr}</td>
-          </tr>`;
-      } else {
-        body.innerHTML = `
-          <tr>
-            <td>1</td><td style="font-weight:700;color:#b91c1c">D</td><td><strong>DEBIT NOTE</strong></td>
-            <td style="text-align:right;font-weight:700">${amtStr}</td><td></td><td>${narr}</td>
-          </tr>
-          <tr>
-            <td>2</td><td style="font-weight:700;color:#15803d">C</td><td><strong>${escH(party)}</strong></td>
+            <td>2</td><td style="font-weight:700;color:#15803d">C</td><td><strong>DEBIT NOTE</strong></td>
             <td></td><td style="text-align:right;font-weight:700">${amtStr}</td><td>${narr}</td>
           </tr>`;
       }
@@ -3611,7 +3899,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       const t = el('vType').value, id = el('vEditId').value, partyName = el('vPartyName').value.trim(), amount = parseFloat(el('vAmount').value) || 0;
       const isNote = (t === 'CN' || t === 'DN');
       if (!partyName) return alert("Enter Party / Account Name!");
-      if (!APP_DB.SUPPLIERS.some(s => s.name.toLowerCase() === partyName.toLowerCase())) return openSupplierModal(partyName, true);
+      if (!APP_DB.SUPPLIERS.some(s => nameKey(s.name) === nameKey(partyName))) return openSupplierModal(partyName, true);
       if (amount <= 0) return alert("Enter valid amount!");
       let mode = 'Credit', bankId = '', bankName = '';
       if (!isNote) {
@@ -3675,6 +3963,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
             </div>
             <div>
               <button id="bulkBtn_${type}" class="btn btn-bulk" onclick="bulkDelGeneric('${type}');renderVoucherList('${type}')">🗑️ Delete Selected (<span id="bulkCnt_${type}">0</span>)</button>
+              <button id="editBtn_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedVoucher('${type}')">✏️ Edit Selected</button>
               <button class="btn btn-save" onclick="openVoucherModal('${type}','NEW')">+ New ${type === 'CN' ? 'Credit Note' : 'Debit Note'}</button>
               <button class="btn btn-print" onclick="printSimpleTable('${titleMap[type]}','vchTbl')">🖨️ Print</button>
               <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
@@ -3683,7 +3972,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
           <table class="items-table" id="vchTbl">
             <thead>
               <tr>
-                <th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></th>
+                <th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></th>
                 <th>Date</th>
                 <th>Vch / Bill No</th>
                 <th>Account</th>
@@ -3694,8 +3983,8 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
             <tbody>
               ${list.slice().reverse().map((r) => {
                 const amt = Number(r.amount != null ? r.amount : r.grandTotal || 0);
-                return `<tr>
-                  <td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></td>
+                return `<tr ondblclick="openVoucherModal('${type}','EDIT','${r.id}')" title="Double-click = Edit">
+                  <td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></td>
                   <td>${r.date}</td>
                   <td><strong style="color:#a16207">${escH(r.docNumber)}</strong></td>
                   <td><strong>${escH(r.partyName)}</strong>${r.narration ? `<div style="font-size:11px;color:#64748b">${escH(r.narration)}</div>` : ''}</td>
@@ -3717,13 +4006,14 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
           <h2 class="page-title">${titleMap[type] || type + ' Vouchers'}</h2>
           <div>
             <button id="bulkBtn_${type}" class="btn btn-bulk" onclick="bulkDelGeneric('${type}');renderVoucherList('${type}')">🗑️ Delete Selected (<span id="bulkCnt_${type}">0</span>)</button>
+            <button id="editBtn_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedVoucher('${type}')">✏️ Edit Selected</button>
             <button class="btn btn-save" onclick="openVoucherModal('${type}','NEW')">+ New ${type}</button>
             <button class="btn btn-print" onclick="printSimpleTable('${type} VOUCHERS','vchTbl')">🖨️ Print All</button>
             <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
           </div>
         </div>
-        <table class="items-table" id="vchTbl"><thead><tr><th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></th><th>#</th><th>Voucher No</th><th>Date</th><th>Party Name</th><th>Mode</th><th>Narration</th><th style="text-align:right">Amount</th><th style="text-align:center">Action</th></tr></thead>
-        <tbody>${list.slice().reverse().map((r, i) => `<tr><td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}')"></td><td>${i+1}</td><td><strong>${escH(r.docNumber)}</strong></td><td>${r.date}</td><td>${escH(r.partyName)}</td><td>${escH(r.mode)}</td><td>${escH(r.narration||'-')}</td><td style="text-align:right;font-weight:700">${fmt(r.amount)}</td><td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openVoucherModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${type}','${r.id}'))renderVoucherList('${type}')">🗑️</button></td></tr>`).join('') || `<tr><td colspan="9" style="text-align:center;padding:30px">பதிவுகள் இல்லை</td></tr>`}</tbody></table>`;
+        <table class="items-table" id="vchTbl"><thead><tr><th style="width:36px"><input type="checkbox" id="allChk_${type}" class="row-check" onchange="toggleAllChecks('chk-${type}',this.checked,'bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></th><th>#</th><th>Voucher No</th><th>Date</th><th>Party Name</th><th>Mode</th><th>Narration</th><th style="text-align:right">Amount</th><th style="text-align:center">Action</th></tr></thead>
+        <tbody>${list.slice().reverse().map((r, i) => `<tr ondblclick="openVoucherModal('${type}','EDIT','${r.id}')" title="Double-click = Edit"><td><input type="checkbox" class="row-check chk-${type}" value="${r.id}" onchange="bindMultiSelect('chk-${type}','bulkBtn_${type}','bulkCnt_${type}','allChk_${type}','editBtn_${type}')"></td><td>${i+1}</td><td><strong>${escH(r.docNumber)}</strong></td><td>${r.date}</td><td>${escH(r.partyName)}</td><td>${escH(r.mode)}</td><td>${escH(r.narration||'-')}</td><td style="text-align:right;font-weight:700">${fmt(r.amount)}</td><td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openVoucherModal('${type}','EDIT','${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteVoucherSafe('${type}','${r.id}'))renderVoucherList('${type}')">🗑️</button></td></tr>`).join('') || `<tr><td colspan="9" style="text-align:center;padding:30px">பதிவுகள் இல்லை</td></tr>`}</tbody></table>`;
     }
 
     function isCashMode(mode) { return modeToBook(mode) === 'Cash' || mode === 'Cash'; }
@@ -3740,10 +4030,21 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       el('mainContainer').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <h2 class="page-title">💵 Cash Book Register</h2>
-          <div><button class="btn btn-print" onclick="printSimpleTable('CASH BOOK','cbTbl')">🖨️ Print</button> <button class="btn btn-cancel" onclick="showDashboard()">← Back</button></div>
+          <div>
+            <button id="editBtn_CASHBOOK" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="(function(){const v=getSingleSelectedValue('chk-cashbook','Voucher');if(!v)return;const p=String(v).split('|');openVoucherModal(p[0],'EDIT',p[1]);})()">✏️ Edit Selected</button>
+            <button class="btn btn-print" onclick="printSimpleTable('CASH BOOK','cbTbl')">🖨️ Print</button>
+            <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
+          </div>
         </div>
-        <table class="items-table" id="cbTbl"><thead><tr><th>#</th><th>Date</th><th>Voucher No</th><th>Party</th><th>Mode</th><th>Narration</th><th style="text-align:right">In (வரவு)</th><th style="text-align:right">Out (செலவு)</th><th style="text-align:right">Balance</th></tr></thead>
-        <tbody>${tx.map((t, i) => { bal += (t.dr - t.cr); return `<tr><td>${i+1}</td><td>${t.date}</td><td>${escH(t.docNumber)}</td><td><strong>${escH(t.partyName)}</strong></td><td>${escH(t.mode||'-')}</td><td>${escH(t.narration||'-')}</td><td style="text-align:right;color:var(--suc)">${t.dr?fmt(t.dr):'-'}</td><td style="text-align:right;color:var(--dng)">${t.cr?fmt(t.cr):'-'}</td><td style="text-align:right;font-weight:700">${fmt(bal)}</td></tr>`; }).join('') || `<tr><td colspan="9" style="text-align:center;padding:30px">பரிவர்த்தனைகள் இல்லை</td></tr>`}</tbody></table>`;
+        <table class="items-table" id="cbTbl"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="allChk_CASHBOOK" class="row-check" onchange="toggleAllChecks('chk-cashbook',this.checked,'','','allChk_CASHBOOK','editBtn_CASHBOOK')"></th>
+          <th>#</th><th>Date</th><th>Voucher No</th><th>Party</th><th>Mode</th><th>Narration</th><th style="text-align:right">In (வரவு)</th><th style="text-align:right">Out (செலவு)</th><th style="text-align:right">Balance</th><th>Action</th></tr></thead>
+        <tbody>${tx.map((t, i) => { bal += (t.dr - t.cr); const kind = t.dr ? 'RECEIPT' : 'PAYMENT'; return `<tr ondblclick="openVoucherModal('${kind}','EDIT','${t.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-cashbook" value="${kind}|${t.id}" onchange="bindMultiSelect('chk-cashbook','','','allChk_CASHBOOK','editBtn_CASHBOOK')"></td>
+          <td>${i+1}</td><td>${t.date}</td><td>${escH(t.docNumber)}</td><td><strong>${escH(t.partyName)}</strong></td><td>${escH(t.mode||'-')}</td><td>${escH(t.narration||'-')}</td>
+          <td style="text-align:right;color:var(--suc)">${t.dr?fmt(t.dr):'-'}</td><td style="text-align:right;color:var(--dng)">${t.cr?fmt(t.cr):'-'}</td>
+          <td style="text-align:right;font-weight:700">${fmt(bal)}</td>
+          <td><button class="btn btn-sm btn-save" onclick="openVoucherModal('${kind}','EDIT','${t.id}')">✏️</button></td></tr>`; }).join('') || `<tr><td colspan="11" style="text-align:center;padding:30px">பரிவர்த்தனைகள் இல்லை</td></tr>`}</tbody></table>`;
     }
 
     function renderBankRegister() {
@@ -3769,6 +4070,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
             <p class="section-subtitle">பல வங்கி கணக்குகள் · Default வங்கி · GPay / NEFT பதிவுகள்</p>
           </div>
           <div>
+            <button id="editBtn_BANKACC" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedBankAcc()">✏️ Edit Selected</button>
             <button class="btn btn-save" onclick="openBankAccountModal()">+ வங்கி கணக்கு சேர்</button>
             <button class="btn btn-print" onclick="printSimpleTable('BANK REGISTER','bankRegTbl')">🖨️ Print</button>
             <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
@@ -3778,9 +4080,11 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px;">
           <div style="font-weight:700;margin-bottom:8px;">வங்கி கணக்குகள் (${banks.length})</div>
           ${banks.length ? `<table class="items-table" style="margin:0;"><thead><tr>
+            <th style="width:36px"><input type="checkbox" id="allChk_BANKACC" class="row-check" onchange="toggleAllChecks('chk-bankacc',this.checked,'','','allChk_BANKACC','editBtn_BANKACC')"></th>
             <th>#</th><th>கணக்கின் பெயர்</th><th>Account எண்</th><th>IFSC</th><th>Bank பெயர்</th><th>ஊர்</th><th>Default</th><th>Action</th>
           </tr></thead>
-          <tbody>${banks.map((b,i) => `<tr>
+          <tbody>${banks.map((b,i) => `<tr ondblclick="openBankAccountModal('${b.id}')" title="Double-click = Edit">
+            <td><input type="checkbox" class="row-check chk-bankacc" value="${b.id}" onchange="bindMultiSelect('chk-bankacc','','','allChk_BANKACC','editBtn_BANKACC')"></td>
             <td>${i+1}</td>
             <td><strong>${escH(b.name)}</strong></td>
             <td>${b.accountNo||'-'}</td>
@@ -3803,15 +4107,22 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
           </select>
         </div>
 
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <button id="editBtn_BANKREG" class="btn btn-sm btn-save" style="display:none;background:#7c3aed;" onclick="(function(){const v=getSingleSelectedValue('chk-bankreg','Voucher');if(!v)return;const p=String(v).split('|');openVoucherModal(p[0],'EDIT',p[1]);})()">✏️ Edit Selected</button>
+        </div>
         <table class="items-table" id="bankRegTbl">
-          <thead><tr><th>#</th><th>Date</th><th>Voucher No</th><th>Party</th><th>Mode</th><th>Bank</th><th>Narration</th><th style="text-align:right">In</th><th style="text-align:right">Out</th><th style="text-align:right">Balance</th></tr></thead>
-          <tbody>${tx.map((t, i) => { bal += (t.dr - t.cr); const bn = t.bankName || (APP_DB.BANK_ACCOUNTS.find(b=>b.id===t.bankId)?.name) || '-'; return `<tr>
+          <thead><tr>
+            <th style="width:36px"><input type="checkbox" id="allChk_BANKREG" class="row-check" onchange="toggleAllChecks('chk-bankreg',this.checked,'','','allChk_BANKREG','editBtn_BANKREG')"></th>
+            <th>#</th><th>Date</th><th>Voucher No</th><th>Party</th><th>Mode</th><th>Bank</th><th>Narration</th><th style="text-align:right">In</th><th style="text-align:right">Out</th><th style="text-align:right">Balance</th><th>Action</th></tr></thead>
+          <tbody>${tx.map((t, i) => { bal += (t.dr - t.cr); const bn = t.bankName || (APP_DB.BANK_ACCOUNTS.find(b=>b.id===t.bankId)?.name) || '-'; const kind = t.dr ? 'RECEIPT' : 'PAYMENT'; return `<tr ondblclick="openVoucherModal('${kind}','EDIT','${t.id}')" title="Double-click = Edit">
+            <td><input type="checkbox" class="row-check chk-bankreg" value="${kind}|${t.id}" onchange="bindMultiSelect('chk-bankreg','','','allChk_BANKREG','editBtn_BANKREG')"></td>
             <td>${i+1}</td><td>${t.date}</td><td>${escH(t.docNumber)}</td><td><strong>${escH(t.partyName)}</strong></td>
             <td>${escH(t.mode||'-')}</td><td>${bn}</td><td>${escH(t.narration||'-')}</td>
             <td style="text-align:right;color:var(--suc)">${t.dr?fmt(t.dr):'-'}</td>
             <td style="text-align:right;color:var(--dng)">${t.cr?fmt(t.cr):'-'}</td>
             <td style="text-align:right;font-weight:700">${fmt(bal)}</td>
-          </tr>`; }).join('') || `<tr><td colspan="10" style="text-align:center;padding:30px">பரிவர்த்தனைகள் இல்லை</td></tr>`}</tbody>
+            <td><button class="btn btn-sm btn-save" onclick="openVoucherModal('${kind}','EDIT','${t.id}')">✏️</button></td>
+          </tr>`; }).join('') || `<tr><td colspan="12" style="text-align:center;padding:30px">பரிவர்த்தனைகள் இல்லை</td></tr>`}</tbody>
         </table>`;
       // restore filter selection after re-render
       if (selectedBankId && el('bankFilterId')) el('bankFilterId').value = selectedBankId;
@@ -3893,7 +4204,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       el('mainContainer').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
           <div>
-            <h2 class="page-title">11. HSN Summary Report</h2>
+            <h2 class="page-title" data-esc-back="1">11. HSN Summary Report</h2>
             <p class="section-subtitle">Purchase / Sales Invoices – தேதி வரம்பு அல்லது பல Voucher-களின் HSN Summary மட்டும்</p>
           </div>
           <div>
@@ -4233,7 +4544,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     function genPartyLedger() {
       const pName = el('plParty').value; if (!pName) return el('pLedgerArea').innerHTML = '';
       const acc = APP_DB.SUPPLIERS.find(s => s.name.toLowerCase() === pName.toLowerCase()), nl = pName.toLowerCase();
-      // Party Ledger: only Orders (PO/SO) + Receipt/Payment + CN/DN.
+      // Party Ledger: only Orders (PO/SO) + Returns + Receipt/Payment + CN/DN.
       // Purchase Invoice / Sales Invoice amounts must NOT affect ledger.
       const tx = [
         ...(APP_DB.SO || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Sales Order', dr: Number(r.grandTotal), cr: 0 })),
@@ -4242,14 +4553,27 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         ...(APP_DB.PAYMENT || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: `Payment (${r.mode})`, dr: Number(r.amount), cr: 0 })),
         ...(APP_DB.CN || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Credit Note', dr: 0, cr: Number(r.grandTotal != null ? r.grandTotal : r.amount) })),
         ...(APP_DB.DN || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Debit Note', dr: Number(r.grandTotal != null ? r.grandTotal : r.amount), cr: 0 }))
-      ].sort((a, b) => a.date.localeCompare(b.date));
+        ,
+        ...(APP_DB.PRET || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Purchase Return', dr: Number(r.grandTotal || 0), cr: 0 })),
+        ...(APP_DB.SRET || []).filter(r => (r.partyName || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Sales Return', dr: 0, cr: Number(r.grandTotal || 0) }))
+        ,
+        ...(APP_DB.JV || []).filter(r => String(r.drParty || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Journal (Dr)' + (r.narration ? ' – ' + r.narration : ''), dr: Number(r.amount || 0), cr: 0 })),
+        ...(APP_DB.JV || []).filter(r => String(r.crParty || '').toLowerCase() === nl).map(r => ({ date: r.date, no: r.docNumber, desc: 'Journal (Cr)' + (r.narration ? ' – ' + r.narration : ''), dr: 0, cr: Number(r.amount || 0) }))
+      ].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
       const isCust = typeof isCustomerLedger === 'function' ? isCustomerLedger(acc) : (acc.groupId === 'SG_CUSTOMER' || acc.groupId === 'SG_SUNDRY_DEBTORS');
       let bal = (isCust ? 1 : -1) * Number(acc.balance || 0);
+      // Date filter: entries before From roll into the opening balance; entries after To are left out.
+      const plF = el('plFrom')?.value || '', plT = el('plTo')?.value || '';
+      if (plF && plT && plF > plT) return el('pLedgerArea').innerHTML = '<p style="padding:14px;color:#b91c1c">From Date, To Date-ஐ விட பின்னதாக இருக்கக்கூடாது.</p>';
+      if (plF) tx.filter(t => String(t.date || '') < plF).forEach(t => { bal += (t.dr - t.cr); });
+      const txAll = tx;
+      tx.splice(0, tx.length, ...txAll.filter(t => (!plF || String(t.date || '') >= plF) && (!plT || String(t.date || '') <= plT)));
       el('pLedgerArea').innerHTML = `
         <table class="items-table"><thead><tr><th>#</th><th>Date</th><th>Doc No</th><th>Particulars</th><th style="text-align:right">Debit (பற்று)</th><th style="text-align:right">Credit (வரவு)</th><th style="text-align:right">Balance</th></tr></thead>
         <tbody>
           <tr style="background:#f8fafc;font-weight:700"><td>-</td><td>-</td><td>OPENING</td><td>Opening Balance</td><td style="text-align:right">${bal>0?fmt(bal):'-'}</td><td style="text-align:right">${bal<0?fmt(Math.abs(bal)):'-'}</td><td style="text-align:right">${fmt(Math.abs(bal))} ${bal>=0?'Dr':'Cr'}</td></tr>
           ${tx.map((t, i) => { bal += (t.dr - t.cr); return `<tr><td>${i+1}</td><td>${t.date}</td><td><strong>${t.no}</strong></td><td>${t.desc}</td><td style="text-align:right;color:#a16207">${t.dr?fmt(t.dr):'-'}</td><td style="text-align:right;color:var(--suc)">${t.cr?fmt(t.cr):'-'}</td><td style="text-align:right;font-weight:700">${fmt(Math.abs(bal))} ${bal>=0?'Dr':'Cr'}</td></tr>`; }).join('')}
+          <tr style="background:#f1f5f9;font-weight:800"><td colspan="4" style="text-align:right">CLOSING BALANCE</td><td style="text-align:right">${fmt(tx.reduce((n, t) => n + t.dr, 0))}</td><td style="text-align:right">${fmt(tx.reduce((n, t) => n + t.cr, 0))}</td><td style="text-align:right">${fmt(Math.abs(bal))} ${bal>=0?'Dr':'Cr'}</td></tr>
         </tbody></table>`;
     }
 
@@ -4317,13 +4641,13 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         return {m,openingQty,openingVal,pQty:x.pQty||0,pAmt:x.pAmt||0,sQty:x.sQty||0,sAmt:x.sAmt||0,closingQty,closingVal,unitValue:unitVal(m)};
       });
       const headers=`<tr><th>#</th><th>Item Name</th><th>Alias</th><th>Group</th><th>Unit</th><th>Opening Stock Qty</th><th>Value (With GST)</th><th>Total Opening Stock</th><th>Purchase Qty</th><th>Value (With GST)</th><th>Total Purchase</th><th>Sales Qty</th><th>Value (With GST)</th><th>Total Sales</th><th>Closing Stock Qty</th><th>Value (With GST)</th><th>Total Closing Stock</th></tr>`;
-      const itemRows=rows.map((r,i)=>`<tr><td>${i+1}</td><td><strong>${escH(r.m.name)}</strong></td><td>${escH(r.m.alias||'-')}</td><td>${escH(getItemGroupName(r.m.groupId)||'Primary')}</td><td>${escH(r.m.unit||'Unit')}</td><td style="text-align:right">${fmt(r.openingQty)}</td><td style="text-align:right">${money(r.unitValue)}</td><td style="text-align:right;font-weight:700">${money(r.openingVal)}</td><td style="text-align:right">${fmt(r.pQty)}</td><td style="text-align:right">${money(r.pQty?r.pAmt/r.pQty:r.unitValue)}</td><td style="text-align:right;font-weight:700">${money(r.pAmt)}</td><td style="text-align:right">${fmt(r.sQty)}</td><td style="text-align:right">${money(r.sQty?r.sAmt/r.sQty:Number(r.m.salesRate||0)*(1+Number(r.m.gst||0)/100))}</td><td style="text-align:right;font-weight:700">${money(r.sAmt)}</td><td style="text-align:right;font-weight:700">${fmt(r.closingQty)}</td><td style="text-align:right">${money(r.unitValue)}</td><td style="text-align:right;font-weight:800">${money(r.closingVal)}</td></tr>`).join('');
+      const itemRows=rows.map((r,i)=>`<tr><td>${i+1}</td><td><strong>${escH(r.m.name)}</strong></td><td>${escH(r.m.alias||'-')}</td><td>${escH(getItemGroupName(r.m.groupId)||'Primary')}</td><td>${escH(r.m.unit||'Unit')}</td><td style="text-align:right">${fmtQty(r.openingQty)}</td><td style="text-align:right">${money(r.unitValue)}</td><td style="text-align:right;font-weight:700">${money(r.openingVal)}</td><td style="text-align:right">${fmtQty(r.pQty)}</td><td style="text-align:right">${money(r.pQty?r.pAmt/r.pQty:r.unitValue)}</td><td style="text-align:right;font-weight:700">${money(r.pAmt)}</td><td style="text-align:right">${fmtQty(r.sQty)}</td><td style="text-align:right">${money(r.sQty?r.sAmt/r.sQty:Number(r.m.salesRate||0)*(1+Number(r.m.gst||0)/100))}</td><td style="text-align:right;font-weight:700">${money(r.sAmt)}</td><td style="text-align:right;font-weight:700">${fmtQty(r.closingQty)}</td><td style="text-align:right">${money(r.unitValue)}</td><td style="text-align:right;font-weight:800">${money(r.closingVal)}</td></tr>`).join('');
       const total=rows.reduce((a,r)=>{a.oq+=r.openingQty;a.ov+=r.openingVal;a.pq+=r.pQty;a.pa+=r.pAmt;a.sq+=r.sQty;a.sa+=r.sAmt;a.cq+=r.closingQty;a.cv+=r.closingVal;return a;},{oq:0,ov:0,pq:0,pa:0,sq:0,sa:0,cq:0,cv:0});
-      const totalRow=`<tr style="background:#e2e8f0;font-weight:800"><td colspan="5" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(total.oq)}</td><td></td><td style="text-align:right">${money(total.ov)}</td><td style="text-align:right">${fmt(total.pq)}</td><td></td><td style="text-align:right">${money(total.pa)}</td><td style="text-align:right">${fmt(total.sq)}</td><td></td><td style="text-align:right">${money(total.sa)}</td><td style="text-align:right">${fmt(total.cq)}</td><td></td><td style="text-align:right">${money(total.cv)}</td></tr>`;
+      const totalRow=`<tr style="background:#e2e8f0;font-weight:800"><td colspan="5" style="text-align:right">TOTAL</td><td style="text-align:right">${fmtQty(total.oq)}</td><td></td><td style="text-align:right">${money(total.ov)}</td><td style="text-align:right">${fmtQty(total.pq)}</td><td></td><td style="text-align:right">${money(total.pa)}</td><td style="text-align:right">${fmtQty(total.sq)}</td><td></td><td style="text-align:right">${money(total.sa)}</td><td style="text-align:right">${fmtQty(total.cq)}</td><td></td><td style="text-align:right">${money(total.cv)}</td></tr>`;
       const dateLabel=(from||to)?`<p style="font-size:12px;color:#475569;margin:4px 0 10px">காலம்: ${from||'தொடக்கம்'} முதல் ${to||'இன்று'} வரை. From Date-க்கு முந்தைய Purchase/Sales movements Opening Stock-ல் சேர்க்கப்பட்டுள்ளன.</p>`:'';
       if(group==='GROUP_SUMMARY'){
         const gm={};rows.forEach(r=>{const g=getItemGroupName(r.m.groupId)||'Primary';gm[g]=gm[g]||{count:0,oq:0,ov:0,pq:0,pa:0,sq:0,sa:0,cq:0,cv:0};const x=gm[g];x.count++;x.oq+=r.openingQty;x.ov+=r.openingVal;x.pq+=r.pQty;x.pa+=r.pAmt;x.sq+=r.sQty;x.sa+=r.sAmt;x.cq+=r.closingQty;x.cv+=r.closingVal;});
-        const gr=Object.keys(gm).sort().map((g,i)=>{const x=gm[g];return `<tr><td>${i+1}</td><td><strong>${escH(g)}</strong></td><td style="text-align:right">${x.count}</td><td style="text-align:right">${fmt(x.oq)}</td><td style="text-align:right">${money(x.ov)}</td><td style="text-align:right">${fmt(x.pq)}</td><td style="text-align:right">${money(x.pa)}</td><td style="text-align:right">${fmt(x.sq)}</td><td style="text-align:right">${money(x.sa)}</td><td style="text-align:right">${fmt(x.cq)}</td><td style="text-align:right;font-weight:800">${money(x.cv)}</td></tr>`;}).join('');
+        const gr=Object.keys(gm).sort().map((g,i)=>{const x=gm[g];return `<tr><td>${i+1}</td><td><strong>${escH(g)}</strong></td><td style="text-align:right">${x.count}</td><td style="text-align:right">${fmtQty(x.oq)}</td><td style="text-align:right">${money(x.ov)}</td><td style="text-align:right">${fmtQty(x.pq)}</td><td style="text-align:right">${money(x.pa)}</td><td style="text-align:right">${fmtQty(x.sq)}</td><td style="text-align:right">${money(x.sa)}</td><td style="text-align:right">${fmtQty(x.cq)}</td><td style="text-align:right;font-weight:800">${money(x.cv)}</td></tr>`;}).join('');
         area.innerHTML=`<h3 style="margin:10px 0">📁 Group Item Summary</h3>${dateLabel}<div style="overflow:auto"><table class="items-table"><thead><tr><th>#</th><th>Group</th><th>Items</th><th>Opening Qty</th><th>Opening Value</th><th>Purchase Qty</th><th>Purchase Value</th><th>Sales Qty</th><th>Sales Value</th><th>Closing Qty</th><th>Closing Value</th></tr></thead><tbody>${gr||'<tr><td colspan="11" style="text-align:center">பதிவுகள் இல்லை</td></tr>'}</tbody></table></div>`;
       }else{
         area.innerHTML=`<h3 style="margin:10px 0">📦 Item Value Details</h3>${dateLabel}<div style="overflow:auto"><table class="items-table" style="min-width:1500px"><thead>${headers}</thead><tbody>${itemRows||'<tr><td colspan="17" style="text-align:center;padding:20px">Items இல்லை</td></tr>'}</tbody><tfoot>${rows.length?totalRow:''}</tfoot></table></div>`;
@@ -5144,6 +5468,372 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       try { localStorage.setItem('CH_SB_COLLAPSED', c ? '1' : '0'); } catch (e) {}
     }
     try { if (localStorage.getItem('CH_SB_COLLAPSED') === '1') document.querySelector('.sidebar').classList.add('collapsed'); } catch (e) {}
+    /* ===== Returns + Accounting + FIFO Financial Statement ===== */
+    const RET_CFG = { PRET: { t: 'Purchase Return (கொள்முதல் திருப்பம்)', pre: 'CHPR', sup: true }, SRET: { t: 'Sales Return (விற்பனை திருப்பம்)', pre: 'CHSR', sup: false } };
+    const fN = v => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const matBy = n => (APP_DB.MATERIALS || []).find(m => String(m.name || '').toLowerCase() === String(n || '').trim().toLowerCase());
+    function retRow() { return `<tr><td><input class="form-control r-item" list="retItems" oninput="retFill(this)" placeholder="Item"></td><td><input class="form-control r-qty" type="number" step="any" oninput="retCalc()" style="width:68px"></td><td><input class="form-control r-rate" type="number" step="any" oninput="retCalc()" style="width:78px"></td><td><input class="form-control r-gst" type="number" step="any" oninput="retCalc()" style="width:54px"></td><td class="r-amt" style="text-align:right;white-space:nowrap">0.00</td></tr>`; }
+    function retAddRow() { el('retBody').insertAdjacentHTML('beforeend', retRow()); }
+    function retFill(inp) { const m = matBy(inp.value); if (!m) return; const tr = inp.closest('tr'); const rate = window._retType === 'PRET' ? (m.purchaseRate ?? m.pr) : (m.salesRate ?? m.sr); tr.querySelector('.r-rate').value = rate != null && rate !== '' ? rate : ''; tr.querySelector('.r-gst').value = m.gst || 0; retCalc(); }
+    function retCalc() { let t = 0; document.querySelectorAll('#retBody tr').forEach(tr => { const q = +tr.querySelector('.r-qty').value || 0, r = +tr.querySelector('.r-rate').value || 0, g = +tr.querySelector('.r-gst').value || 0, a = q * r * (1 + g / 100); tr.querySelector('.r-amt').innerText = fN(a); t += a; }); el('retTot').innerText = '₹ ' + fN(t); }
+    function renderReturnForm(type, editId) {
+      window._retType = type; window._retEditId = editId || null; const C = RET_CFG[type];
+      const parties = (APP_DB.SUPPLIERS || []).filter(a => { try { return C.sup ? isSupplierLedger(a) : isCustomerLedger(a); } catch (e) { return false; } });
+      const rec = editId ? (APP_DB[type] || []).find(x => x.id === editId) : null;
+      el('mainContainer').innerHTML = `<h2 class="page-title">↩️ ${C.t}${rec ? ' – Edit' : ''}</h2><p class="section-subtitle">Item வாரியாக திருப்பம் பதிவு. Stock, Party Ledger, Financial Statement ஆகியவற்றில் தானாகச் சேரும்.</p>
+      <datalist id="retItems">${(APP_DB.MATERIALS || []).map(m => `<option value="${escH(m.name || '')}">`).join('')}</datalist>
+      <datalist id="retParties">${parties.map(a => `<option value="${escH(a.name || '')}">`).join('')}</datalist>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"><label>Date<br><input id="retDate" type="date" class="form-control" value="${escH(rec ? (rec.date || '') : dashIso(new Date()))}"></label>
+      <label>${C.sup ? 'Supplier' : 'Customer'}<br><input id="retParty" class="form-control" list="retParties" placeholder="Account" value="${escH(rec ? (rec.partyName || '') : '')}"></label>
+      <label>Ref (Order/Bill No)<br><input id="retRef" class="form-control" value="${escH(rec ? (rec.refNo || '') : '')}"></label>
+      ${rec ? `<label>Doc No<br><input class="form-control" value="${escH(rec.docNumber || '')}" readonly></label>` : ''}</div>
+      <div style="overflow-x:auto"><table class="items-table" style="min-width:420px"><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>GST%</th><th>Amount</th></tr></thead><tbody id="retBody"></tbody></table></div>
+      <div style="margin:10px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-sm btn-convert" onclick="retAddRow()">+ Row</button><b>Total: <span id="retTot">₹ 0.00</span></b>
+      <button class="btn btn-save" onclick="retSave()">${rec ? '💾 Update Return' : '💾 Save Return'}</button><button class="btn btn-sm" onclick="renderReturnList('${type}')">📋 List</button></div>`;
+      const body = el('retBody');
+      if (rec && rec.items && rec.items.length) {
+        rec.items.forEach(it => {
+          body.insertAdjacentHTML('beforeend', retRow());
+          const tr = body.lastElementChild;
+          tr.querySelector('.r-item').value = it.itemName || '';
+          tr.querySelector('.r-qty').value = it.qty || '';
+          tr.querySelector('.r-rate').value = it.rate || '';
+          tr.querySelector('.r-gst').value = it.gst || 0;
+        });
+      } else {
+        body.insertAdjacentHTML('beforeend', retRow() + retRow());
+      }
+      retCalc();
+    }
+    function retSave() {
+      const type = window._retType, C = RET_CFG[type], party = (el('retParty').value || '').trim();
+      const acc = (APP_DB.SUPPLIERS || []).find(a => String(a.name).toLowerCase() === party.toLowerCase());
+      if (!acc) return alert('Party பட்டியலில் உள்ள கணக்கைத் தேர்ந்தெடுக்கவும்.');
+      const items = []; let bad = '';
+      document.querySelectorAll('#retBody tr').forEach(tr => {
+        const n = tr.querySelector('.r-item').value.trim(), q = +tr.querySelector('.r-qty').value || 0, r = +tr.querySelector('.r-rate').value || 0, g = +tr.querySelector('.r-gst').value || 0;
+        if (!n && !q) return; const m = matBy(n); if (!m || q <= 0) { bad = n || '(blank)'; return; }
+        const taxable = q * r, gv = taxable * g / 200;
+        items.push({ itemName: m.name, hsn: m.hsn || '', unit: m.unit || '', qty: q, rate: r, gst: g, taxable, cgstVal: gv, sgstVal: gv, total: taxable + 2 * gv });
+      });
+      if (bad) return alert('Item / Qty சரியில்லை: ' + bad); if (!items.length) return alert('குறைந்தது ஒரு Item சேர்க்கவும்.');
+      if (type === 'PRET') { const short = items.find(it => it.qty > getItemStock(it.itemName)); if (short && !confirm(short.itemName + ': Stock-ஐ விட அதிகம். தொடரவா?')) return; }
+      const list = APP_DB[type] = APP_DB[type] || [];
+      const cg = items.reduce((a, i) => a + i.cgstVal, 0), sg = items.reduce((a, i) => a + i.sgstVal, 0), sub = items.reduce((a, i) => a + i.taxable, 0);
+      const editId = window._retEditId;
+      if (editId) {
+        const idx = list.findIndex(x => x.id === editId);
+        if (idx < 0) return alert('பதிவு கிடைக்கவில்லை');
+        const old = list[idx];
+        list[idx] = { ...old, date: el('retDate').value, partyName: acc.name, refNo: el('retRef').value, items, subtotal: sub, cgst: cg, sgst: sg, grandTotal: sub + cg + sg };
+        saveDB(); alert((old.docNumber || '') + ' update செய்யப்பட்டது ✓'); renderReturnList(type); return;
+      }
+      const no = C.pre + '-' + String(Math.max(0, ...list.map(r => parseInt(String(r.docNumber).split('-').pop()) || 0)) + 1).padStart(4, '0');
+      list.push({ id: 'RET_' + Date.now(), docNumber: no, date: el('retDate').value, partyName: acc.name, refNo: el('retRef').value, items, subtotal: sub, cgst: cg, sgst: sg, grandTotal: sub + cg + sg });
+      saveDB(); alert(no + ' சேமிக்கப்பட்டது ✓'); renderReturnList(type);
+    }
+    function renderReturnList(type) {
+      const C = RET_CFG[type], list = (APP_DB[type] || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      el('mainContainer').innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <h2 class="page-title" style="margin:0">📋 ${C.t}</h2>
+        <div>
+          <button id="bulkBtn_ret_${type}" class="btn btn-bulk" style="display:none;" onclick="bulkDelReturns('${type}')">🗑️ Delete Selected (<span id="bulkCnt_ret_${type}">0</span>)</button>
+          <button id="editBtn_ret_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedReturn('${type}')">✏️ Edit Selected</button>
+          <button class="btn btn-save" onclick="renderReturnForm('${type}')">+ New Return</button>
+        </div></div>
+      <p class="section-subtitle">☑️ ஒரு பதிவை Select → Edit / Delete Selected · அல்லது ✏️ / 🗑️ / Double-click</p>
+      <div style="overflow-x:auto;margin-top:10px"><table class="items-table"><thead><tr>
+        <th style="width:36px"><input type="checkbox" id="allChk_ret_${type}" class="row-check" onchange="toggleAllChecks('chk-ret-${type}',this.checked,'bulkBtn_ret_${type}','bulkCnt_ret_${type}','allChk_ret_${type}','editBtn_ret_${type}')"></th>
+        <th>Date</th><th>No</th><th>Party</th><th>Items</th><th style="text-align:right">Amount</th><th>Action</th></tr></thead>
+        <tbody>${list.map(r => `<tr ondblclick="renderReturnForm('${type}','${r.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-ret-${type}" value="${r.id}" onchange="bindMultiSelect('chk-ret-${type}','bulkBtn_ret_${type}','bulkCnt_ret_${type}','allChk_ret_${type}','editBtn_ret_${type}')"></td>
+          <td>${r.date}</td><td>${escH(r.docNumber)}</td><td>${escH(r.partyName)}</td>
+          <td>${(r.items||[]).map(i => escH(i.itemName) + ' ×' + i.qty).join(', ')}</td>
+          <td style="text-align:right">${fN(r.grandTotal)}</td>
+          <td style="white-space:nowrap"><button class="btn btn-sm btn-save" onclick="renderReturnForm('${type}','${r.id}')">✏️</button>
+          <button class="btn btn-sm btn-delete" onclick="if(retDel('${type}','${r.id}'))renderReturnList('${type}')">🗑️</button></td></tr>`).join('') || '<tr><td colspan="7">பதிவுகள் இல்லை</td></tr>'}</tbody></table></div>`;
+    }
+    function retDel(type, id, askConfirm = true) {
+      if (askConfirm && !confirm('இந்த Return-ஐ நீக்கவா?')) return false;
+      APP_DB[type] = (APP_DB[type] || []).filter(r => r.id !== id);
+      saveDB();
+      return true;
+    }
+    function bulkDelReturns(type) {
+      const ids = Array.from(document.querySelectorAll('.chk-ret-' + type + ':checked')).map(c => c.value);
+      if (!ids.length) return alert('நீக்க ஒரு பதிவையாவது select செய்யவும்.');
+      if (!confirm('தேர்ந்தெடுக்கப்பட்ட ' + ids.length + ' Return பதிவுகளை நீக்கவா?\n\nஇந்த செயலை மீட்டெடுக்க முடியாது.')) return;
+      ids.forEach(id => retDel(type, id, false));
+      saveDB();
+      renderReturnList(type);
+    }
+
+    function fsCompute(from, to) {
+      const ev = [], rt = m => Number((m && (m.purchaseRate != null && m.purchaseRate !== '' ? m.purchaseRate : m.pr)) || 0), pr = n => rt(matBy(n));
+      (APP_DB.MATERIALS || []).forEach(m => { const q = +m.openingQty || 0; if (q > 0) ev.push({ d: '0000', o: 0, k: 'OP', item: m.name, qty: q, val: q * rt(m) }); });
+      const add = (arr, k, o) => (arr || []).forEach(d => (d.items || []).forEach(it => ev.push({ d: d.date || '', o, k, item: it.itemName, qty: +it.qty || 0, val: +(it.taxable != null ? it.taxable : it.qty * it.rate) || 0 })));
+      add(APP_DB.PO, 'P', 1); add(APP_DB.SRET, 'SR', 2); add(APP_DB.SO, 'S', 3); add(APP_DB.PRET, 'PR', 4);
+      ev.sort((a, b) => a.d.localeCompare(b.d) || a.o - b.o);
+      const lots = {}, last = {}, I = {}, T = { op: 0, pu: 0, pr: 0, sa: 0, sr: 0, cg: 0, sc: 0, cl: 0 };
+      const stockVal = () => Object.values(lots).reduce((a, L) => a + L.reduce((b, x) => b + x.q * x.c, 0), 0);
+      let snap = !from; if (!from) T.op = ev.filter(e => e.k === 'OP').reduce((a, e) => a + e.val, 0);
+      for (const e of ev) {
+        if (to && e.d > to) break;
+        if (!snap && e.d >= from) { T.op = stockVal(); snap = true; }
+        const L = lots[e.item] = lots[e.item] || [], R = I[e.item] = I[e.item] || { sa: 0, cg: 0, sr: 0, sc: 0, qs: 0, neg: false };
+        const inP = e.d !== '0000' && (!from || e.d >= from) && (!to || e.d <= to);
+        if (e.k === 'OP' || e.k === 'P') { if (e.qty > 0) L.push({ q: e.qty, c: e.val / e.qty }); if (e.k === 'P' && inP) T.pu += e.val; }
+        else if (e.k === 'SR') { const c = last[e.item] != null ? last[e.item] : pr(e.item); if (e.qty > 0) L.push({ q: e.qty, c }); if (inP) { T.sr += e.val; T.sc += e.qty * c; R.sr += e.val; R.sc += e.qty * c; } }
+        else {
+          let need = e.qty, cost = 0;
+          while (need > 1e-9 && L.length) { const x = e.k === 'S' ? L[0] : L[L.length - 1], t = Math.min(x.q, need); cost += t * x.c; x.q -= t; need -= t; if (x.q <= 1e-9) (e.k === 'S' ? L.shift() : L.pop()); }
+          if (need > 1e-9) { cost += need * pr(e.item); R.neg = true; }
+          if (e.k === 'S') { last[e.item] = e.qty ? cost / e.qty : 0; if (inP) { T.sa += e.val; T.cg += cost; R.sa += e.val; R.cg += cost; R.qs += e.qty; } }
+          else if (inP) T.pr += cost;
+        }
+      }
+      if (!snap) T.op = stockVal();
+      T.cl = stockVal(); T.gp = (T.sa - T.sr) - (T.cg - T.sc);
+      return { T, I };
+    }
+    function fsJournal(from, to) {
+      const rows = [], inR = d => (!from || d >= from) && (!to || d <= to);
+      const add = (arr, tag, f) => (arr || []).forEach(d => { if (!inR(d.date || '')) return; const tx = (+d.grandTotal || 0) - (+d.cgst || 0) - (+d.sgst || 0), gs = (+d.cgst || 0) + (+d.sgst || 0); rows.push({ d: d.date || '', no: d.docNumber, tag, L: f(d, tx, gs) }); });
+      add(APP_DB.PO, 'Purchase', (d, tx, g) => [['Purchases A/c', tx, 0], ['Input GST', g, 0], [d.partyName, 0, d.grandTotal]]);
+      add(APP_DB.PRET, 'Purch.Return', (d, tx, g) => [[d.partyName, d.grandTotal, 0], ['Purchase Returns A/c', 0, tx], ['Input GST', 0, g]]);
+      add(APP_DB.SO, 'Sales', (d, tx, g) => [[d.partyName, d.grandTotal, 0], ['Sales A/c', 0, tx], ['Output GST', 0, g]]);
+      add(APP_DB.SRET, 'Sales Return', (d, tx, g) => [['Sales Returns A/c', tx, 0], ['Output GST', g, 0], [d.partyName, 0, d.grandTotal]]);
+      (APP_DB.PAYMENT || []).forEach(r => { if (!inR(r.date || '') || !fsLedgerKind(r.partyName)) return; rows.push({ d: r.date, no: r.docNumber, tag: 'Payment', L: [[r.partyName, r.amount, 0], [r.bankName ? r.bankName + ' (Bank)' : 'Cash A/c', 0, r.amount]] }); });
+      (APP_DB.RECEIPT || []).forEach(r => { if (!inR(r.date || '') || !fsLedgerKind(r.partyName)) return; rows.push({ d: r.date, no: r.docNumber, tag: 'Receipt', L: [[r.bankName ? r.bankName + ' (Bank)' : 'Cash A/c', r.amount, 0], [r.partyName, 0, r.amount]] }); });
+      (APP_DB.DN || []).forEach(r => { const a = Number(r.amount || r.grandTotal || 0); if (!inR(r.date || '') || !fsLedgerKind(r.partyName)) return; rows.push({ d: r.date, no: r.docNumber, tag: 'Debit Note', L: [[r.partyName, a, 0], ['DEBIT NOTE', 0, a]] }); });
+      (APP_DB.CN || []).forEach(r => { const a = Number(r.amount || r.grandTotal || 0); if (!inR(r.date || '') || !fsLedgerKind(r.partyName)) return; rows.push({ d: r.date, no: r.docNumber, tag: 'Credit Note', L: [['CREDIT NOTE', a, 0], [r.partyName, 0, a]] }); });
+      (APP_DB.JV || []).forEach(r => { if (!inR(r.date || '')) return; const a = Number(r.amount || 0); rows.push({ d: r.date, no: r.docNumber, tag: 'Journal', L: [[r.drParty, a, 0], [r.crParty, 0, a]] }); });
+      return rows.sort((a, b) => a.d.localeCompare(b.d));
+    }
+
+    /* ===== Journal Entry (Dr Account / Cr Account) ===== */
+    function jvPreview() {
+      const b = el('jvPreviewBody'); if (!b) return;
+      const dr = (el('jvDr')?.value || '').trim() || '— Dr Account —', cr = (el('jvCr')?.value || '').trim() || '— Cr Account —';
+      const a = parseFloat(el('jvAmt')?.value) || 0, as = a ? a.toFixed(2) : '', nr = escH((el('jvNarr')?.value || '').trim());
+      b.innerHTML = `<tr><td style="font-weight:700;color:#b91c1c">Dr</td><td><strong>${escH(dr)}</strong></td><td style="text-align:right;font-weight:700">${as}</td><td></td></tr>
+        <tr><td style="font-weight:700;color:#15803d">Cr</td><td><strong>${escH(cr)}</strong></td><td></td><td style="text-align:right;font-weight:700">${as}</td></tr>
+        ${nr ? `<tr><td colspan="4" style="font-size:11.5px;color:#64748b">Narration: ${nr}</td></tr>` : ''}`;
+    }
+    function openJournalModal(id) {
+      const rec = id ? (APP_DB.JV || []).find(x => x.id === id) : null;
+      if (id && !rec) return;
+      let ov = el('journalModal');
+      if (!ov) { ov = document.createElement('div'); ov.id = 'journalModal'; ov.className = 'modal-overlay'; document.body.appendChild(ov); }
+      window._jvEditId = rec ? rec.id : '';
+      const names = (APP_DB.SUPPLIERS || []).map(a => a.name).filter(Boolean);
+      ov.innerHTML = `
+        <div class="modal-dialog" style="max-width:560px">
+          <div class="modal-header"><h3>📒 Journal Entry (${rec ? 'Edit' : 'New'})</h3><button class="close-btn" onclick="closeModal('journalModal')">&times;</button></div>
+          <div class="modal-body">
+            <datalist id="jvAccList">${names.map(n => `<option value="${escH(n)}">`).join('')}</datalist>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div class="form-group"><label>Journal No</label><input type="text" id="jvNo" class="form-control" readonly value="${escH(rec ? rec.docNumber : nextDocNo('JV'))}"></div>
+              <div class="form-group"><label>Date *</label><input type="date" id="jvDate" class="form-control" value="${escH(rec ? rec.date : dashIso(new Date()))}"></div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px;"><label>Dr Account (பற்று) *</label><input type="text" id="jvDr" class="form-control" list="jvAccList" autocomplete="off" placeholder="Account பெயர்" value="${escH(rec ? rec.drParty : '')}" oninput="jvPreview()"></div>
+            <div class="form-group" style="margin-bottom:10px;"><label>Cr Account (வரவு) *</label><input type="text" id="jvCr" class="form-control" list="jvAccList" autocomplete="off" placeholder="Account பெயர்" value="${escH(rec ? rec.crParty : '')}" oninput="jvPreview()"></div>
+            <div class="form-group" style="margin-bottom:10px;"><label>Amount (₹) *</label><input type="number" id="jvAmt" class="form-control" step="any" value="${rec ? rec.amount : ''}" oninput="jvPreview()"></div>
+            <div class="form-group"><label>Narration</label><input type="text" id="jvNarr" class="form-control" value="${escH(rec ? (rec.narration || '') : '')}" oninput="jvPreview()"></div>
+            <div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;color:#7c3aed;">Journal Entry (Dr / Cr)</div>
+              <table class="items-table" style="margin:0;font-size:12.5px;"><thead><tr><th style="width:40px">D/C</th><th>Account</th><th style="text-align:right">Debit (Rs.)</th><th style="text-align:right">Credit (Rs.)</th></tr></thead><tbody id="jvPreviewBody"></tbody></table></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="closeModal('journalModal')">Cancel</button>
+            <button class="btn btn-save" onclick="saveJournal()">${rec ? 'Update Journal' : 'Save Journal'}</button>
+          </div>
+        </div>`;
+      jvPreview();
+      ov.classList.add('active');
+      setTimeout(() => { const f = el('jvDr'); if (f) f.focus(); }, 60);
+    }
+    function saveJournal() {
+      const id = window._jvEditId || '';
+      const dr = (el('jvDr').value || '').trim(), cr = (el('jvCr').value || '').trim(), amt = parseFloat(el('jvAmt').value) || 0, date = el('jvDate').value, no = el('jvNo').value;
+      if (!date) return alert('தேதியை உள்ளிடவும்!');
+      const find = n => (APP_DB.SUPPLIERS || []).find(s => nameKey(s.name) === nameKey(n));
+      if (!dr || !cr) return alert('Dr Account, Cr Account இரண்டையும் உள்ளிடவும்!');
+      const dA = find(dr), cA = find(cr);
+      if (!dA) return alert('Dr Account "' + dr + '" Account பட்டியலில் இல்லை. முதலில் Account உருவாக்கவும்.');
+      if (!cA) return alert('Cr Account "' + cr + '" Account பட்டியலில் இல்லை. முதலில் Account உருவாக்கவும்.');
+      if (nameKey(dA.name) === nameKey(cA.name)) return alert('Dr மற்றும் Cr Account ஒரே Account ஆக இருக்கக்கூடாது!');
+      if (amt <= 0) return alert('சரியான தொகையை உள்ளிடவும்!');
+      if (!assertUniqueDocNo('JV', no, id)) return;
+      const rec = { id: id || ('JV_' + Date.now()), docNumber: no, date, drParty: dA.name, crParty: cA.name, partyName: dA.name, amount: amt, grandTotal: amt, narration: (el('jvNarr').value || '').trim(), items: [] };
+      if (!APP_DB.JV) APP_DB.JV = [];
+      if (id) { const i = APP_DB.JV.findIndex(x => x.id === id); if (i > -1) APP_DB.JV[i] = rec; }
+      else { APP_DB.JV.push(rec); incCounter('JV'); }
+      saveDB(); closeModal('journalModal'); renderJournalList();
+    }
+    function deleteJournal(id, ask = true) {
+      if (ask && !confirm('இந்த Journal-ஐ நீக்கவா?')) return false;
+      APP_DB.JV = (APP_DB.JV || []).filter(x => x.id !== id); saveDB(); return true;
+    }
+    function bulkDelJournal() {
+      const ids = Array.from(document.querySelectorAll('.chk-JV:checked')).map(c => c.value);
+      if (!ids.length) return;
+      if (!confirm(`தேர்ந்தெடுக்கப்பட்ட ${ids.length} Journal பதிவுகளை நீக்கவா?\n\nஇந்த செயலை மீட்டெடுக்க முடியாது.`)) return;
+      ids.forEach(i => deleteJournal(i, false)); renderJournalList();
+    }
+    function editSelectedJournal() {
+      const id = getSingleSelectedValue('chk-JV', 'Journal'); if (id == null) return;
+      openJournalModal(id);
+    }
+    function renderJournalList() {
+      const list = APP_DB.JV || [], sum = list.reduce((n, r) => n + Number(r.amount || 0), 0);
+      el('mainContainer').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div><h2 class="page-title">List of Journals</h2><p class="section-subtitle">Dr Account / Cr Account · Party Balance, Party Ledger, Financial Statement-ல் தானாகச் சேரும்</p></div>
+          <div>
+            <button id="bulkBtn_JV" class="btn btn-bulk" onclick="bulkDelJournal()">🗑️ Delete Selected (<span id="bulkCnt_JV">0</span>)</button>
+            <button id="editBtn_JV" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedJournal()">✏️ Edit Selected</button>
+            <button class="btn btn-save" onclick="openJournalModal()">+ New Journal</button>
+            <button class="btn btn-print" onclick="printSimpleTable('LIST OF JOURNALS','jvTbl')">🖨️ Print</button>
+            <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><table class="items-table" id="jvTbl">
+          <thead><tr><th style="width:36px"><input type="checkbox" id="allChk_JV" class="row-check" onchange="toggleAllChecks('chk-JV',this.checked,'bulkBtn_JV','bulkCnt_JV','allChk_JV','editBtn_JV')"></th><th>Date</th><th>Journal No</th><th>Dr Account</th><th>Cr Account</th><th style="text-align:right">Amount</th><th style="text-align:center">Action</th></tr></thead>
+          <tbody>${list.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map(r => `<tr ondblclick="openJournalModal('${r.id}')" title="Double-click = Edit">
+            <td><input type="checkbox" class="row-check chk-JV" value="${r.id}" onchange="bindMultiSelect('chk-JV','bulkBtn_JV','bulkCnt_JV','allChk_JV','editBtn_JV')"></td>
+            <td>${escH(r.date || '')}</td><td><strong style="color:#a16207">${escH(r.docNumber || '')}</strong></td>
+            <td><strong>${escH(r.drParty || '')}</strong>${r.narration ? `<div style="font-size:11px;color:#64748b">${escH(r.narration)}</div>` : ''}</td><td><strong>${escH(r.crParty || '')}</strong></td>
+            <td style="text-align:right;font-weight:700">${fmt(r.amount)}</td>
+            <td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openJournalModal('${r.id}')">✏️</button> <button class="btn btn-sm btn-delete" onclick="if(deleteJournal('${r.id}'))renderJournalList();">🗑️</button></td></tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:30px">பதிவுகள் இல்லை</td></tr>'}
+          ${list.length ? `<tr style="background:#f1f5f9;font-weight:800"><td colspan="5" style="text-align:right">TOTAL</td><td style="text-align:right">${fmt(sum)}</td><td></td></tr>` : ''}</tbody></table></div>`;
+      bindMultiSelect('chk-JV', 'bulkBtn_JV', 'bulkCnt_JV', 'allChk_JV', 'editBtn_JV');
+    }
+
+    /* ===== Duplicate-name rule + cleanup ===== */
+    function nameKey(s) { return String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toLowerCase(); }
+    function dupSets(arr) { const m = {}; (arr || []).forEach((r, i) => { const k = nameKey(r.name); if (k) (m[k] = m[k] || []).push(i); }); return Object.values(m).filter(a => a.length > 1); }
+    /** Merge same-name masters into one (silent). Keeps richest record; fills empty fields from others. */
+    function autoMergeNameDuplicates(key) {
+      const arr = APP_DB[key] || [];
+      const sets = dupSets(arr);
+      if (!sets.length) return 0;
+      const gone = new Set();
+      sets.forEach(set => {
+        let keep = set[0];
+        const score = x => {
+          let sc = 0;
+          if (Number(x.balance || 0)) sc += 3;
+          if (Number(x.openingQty || 0)) sc += 3;
+          Object.keys(x || {}).forEach(f => { if (x[f] !== '' && x[f] != null && x[f] !== 0) sc++; });
+          return sc;
+        };
+        set.forEach(i => { if (score(arr[i]) > score(arr[keep])) keep = i; });
+        const K = arr[keep];
+        K.name = String(K.name || '').trim().replace(/\s+/g, ' ');
+        set.forEach(i => {
+          if (i === keep) return;
+          const o = arr[i] || {};
+          Object.keys(o).forEach(f => {
+            if (f === 'name' || f === 'id') return;
+            if ((K[f] === '' || K[f] == null || K[f] === 0) && o[f] !== '' && o[f] != null && o[f] !== 0) K[f] = o[f];
+          });
+          gone.add(i);
+        });
+      });
+      if (!gone.size) return 0;
+      APP_DB[key] = arr.filter((_, i) => !gone.has(i));
+      try { saveDB(); } catch (e) {}
+      return gone.size;
+    }
+    function renderDuplicateCleanup() {
+      const A = dupSets(APP_DB.SUPPLIERS), M = dupSets(APP_DB.MATERIALS), grp = id => { const g = (APP_DB.SUPPLIER_GROUPS_TREE || []).find(x => x.id === id); return g ? g.name : (id || '-'); };
+      const block = (sets, arr, pre, acc) => sets.map((set, si) => { const pref = set.find(i => Number(arr[i].balance || arr[i].openingQty || 0)) ?? set[0]; return `<div style="margin:8px 0;border:1px solid var(--bdr);border-radius:8px;padding:6px;background:#fff"><b>${escH(arr[set[0]].name)}</b> <small style="color:#64748b">(${set.length} பதிவுகள் — வைத்துக்கொள்ள ஒன்றைத் தேர்ந்தெடுக்கவும்)</small><div style="overflow-x:auto"><table class="items-table"><tbody>${set.map(i => `<tr><td><input type="radio" name="${pre}${si}" value="${i}" ${i === pref ? 'checked' : ''}></td><td>#${i + 1}</td><td>${acc ? escH(grp(arr[i].groupId)) : escH(String(arr[i].hsn || '-'))}</td><td>${acc ? escH(arr[i].address || '-') : escH(arr[i].unit || '-')}</td><td style="text-align:right">${acc ? fN(arr[i].balance) : (arr[i].openingQty || 0)}</td></tr>`).join('')}</tbody></table></div></div>`; }).join('');
+      el('mainContainer').innerHTML = `<h2 class="page-title">🧹 Duplicate Account / Item Check</h2><p class="section-subtitle">ஒரே பெயர் இரண்டு முறை இருக்கக்கூடாது. வைத்துக்கொள்ளும் பதிவைத் தேர்ந்தெடுத்து Merge செய்யவும். Bill, Voucher பதிவுகள் பெயர் மூலம் இணைந்திருப்பதால் அவை பாதிக்கப்படாது.</p>
+      <h3>Accounts (${A.length})</h3>${block(A, APP_DB.SUPPLIERS, 'dA', true) || '<p style="color:#15803d">✓ இரட்டிப்பு Account இல்லை</p>'}
+      <h3 style="margin-top:14px">Items (${M.length})</h3>${block(M, APP_DB.MATERIALS, 'dM', false) || '<p style="color:#15803d">✓ இரட்டிப்பு Item இல்லை</p>'}
+      ${A.length + M.length ? '<button class="btn btn-save" style="margin-top:12px" onclick="dupMerge()">🧹 Merge & Remove Duplicates</button>' : ''}`;
+    }
+    function dupMerge() {
+      if (!confirm('தேர்ந்தெடுக்காத இரட்டிப்புப் பதிவுகள் நீக்கப்படும் (விடுபட்ட விவரங்கள் வைத்துக்கொள்ளும் பதிவில் சேரும்). தொடரவா?')) return;
+      const run = (key, pre) => { const arr = APP_DB[key] || [], gone = new Set(); dupSets(arr).forEach((set, si) => { const sel = document.querySelector(`input[name="${pre}${si}"]:checked`), keep = sel ? +sel.value : set[0], K = arr[keep]; K.name = String(K.name).trim().replace(/\s+/g, ' '); set.forEach(i => { if (i === keep) return; const o = arr[i]; Object.keys(o).forEach(f => { if (!K[f] && o[f]) K[f] = o[f]; }); gone.add(i); }); }); APP_DB[key] = arr.filter((_, i) => !gone.has(i)); return gone.size; };
+      const a = run('SUPPLIERS', 'dA'), m = run('MATERIALS', 'dM'); saveDB(); alert('நீக்கப்பட்டவை: Accounts ' + a + ', Items ' + m); renderDuplicateCleanup();
+    }
+    function ensureExtraGroups() {
+      const tree = APP_DB.SUPPLIER_GROUPS_TREE = APP_DB.SUPPLIER_GROUPS_TREE || [];
+      [{ id: 'SG_OTHER_EXPENSES', name: 'Other Expenses', parentId: null }, { id: 'SG_OTHER_INCOME', name: 'Other Income', parentId: null }].forEach(n => { if (!tree.find(g => g.id === n.id)) tree.push({ ...n }); });
+    }
+    ensureExtraGroups();
+    function fsLedgerKind(name) {
+      const a = (APP_DB.SUPPLIERS || []).find(x => String(x.name).toLowerCase() === String(name || '').trim().toLowerCase()); if (!a) return null;
+      if (isUnderAccountRoot(a.groupId, ['SG_OTHER_EXPENSES'])) return { k: 'E', name: a.name };
+      if (isUnderAccountRoot(a.groupId, ['SG_OTHER_INCOME'])) return { k: 'I', name: a.name };
+      return null;
+    }
+    function fsExpInc(from, to) {
+      const inR = d => (!from || d >= from) && (!to || d <= to), E = {}, I = {};
+      const add = (arr, sign) => (arr || []).forEach(r => { if (!inR(r.date || '')) return; const x = fsLedgerKind(r.partyName); if (!x) return; const v = Number(r.amount || r.grandTotal || 0) * sign, M = x.k === 'E' ? E : I; M[x.name] = (M[x.name] || 0) + (x.k === 'E' ? v : -v); });
+      add(APP_DB.PAYMENT, 1); add(APP_DB.DN, 1); add(APP_DB.RECEIPT, -1); add(APP_DB.CN, -1);
+      (APP_DB.JV || []).forEach(r => { if (!inR(r.date || '')) return; const a = Number(r.amount || 0); [[r.drParty, 1], [r.crParty, -1]].forEach(([nm, sg]) => { const x = fsLedgerKind(nm); if (!x) return; const M = x.k === 'E' ? E : I; M[x.name] = (M[x.name] || 0) + (x.k === 'E' ? a * sg : -a * sg); }); });
+      const arr = M => Object.entries(M).filter(([, v]) => Math.abs(v) > 0.004).sort((a, b) => b[1] - a[1]), inc = arr(I), exp = arr(E);
+      return { inc, exp, ti: inc.reduce((a, [, v]) => a + v, 0), te: exp.reduce((a, [, v]) => a + v, 0) };
+    }
+    function fsSet(m) { const n = new Date(); window._fsR = m === 'month' ? { from: dashIso(new Date(n.getFullYear(), n.getMonth(), 1)), to: dashIso(new Date(n.getFullYear(), n.getMonth() + 1, 0)) } : m === 'custom' ? { from: el('fsFrom').value, to: el('fsTo').value } : { from: '', to: '' }; renderFinancialStatement(); }
+    function renderFinancialStatement() {
+      if (!window._dashBal) showDashboard();
+      const R = window._fsR || (window._fsR = { from: '', to: '' }), { T, I } = fsCompute(R.from, R.to), B = window._dashBal || {};
+      const X = fsExpInc(R.from, R.to), gp = T.gp, net = gp + X.ti - X.te, dr = T.op + T.pu - T.pr, cr = T.sa - T.sr + T.cl, adj = cr - dr - gp, row = (a, b, c = '') => `<tr><td>${a}</td><td style="text-align:right;${c}">${fN(b)}</td></tr>`;
+      const items = Object.entries(I).filter(([, r]) => r.sa || r.sr || r.cg).sort((a, b) => (b[1].sa - b[1].cg) - (a[1].sa - a[1].cg));
+      const J = fsJournal(R.from, R.to); let jd = 0, jc = 0; J.forEach(j => j.L.forEach(l => { jd += +l[1] || 0; jc += +l[2] || 0; }));
+      const assets = T.cl + (B.cIn || 0) + (B.bIn || 0) + (B.toRec || 0);
+      el('mainContainer').innerHTML = `<h2 class="page-title">📈 Financial Statement <span style="font-size:13px;color:#a16207">· ${R.from || R.to ? (R.from || '…') + ' → ' + (R.to || '…') : 'All Dates'}</span></h2>
+      <p class="section-subtitle">Purchase/Sales Order + Returns அடிப்படை · FIFO · GST நீங்கலான மதிப்பு · Invoices சேர்க்கப்படவில்லை</p>
+      <div class="dash-filter"><input type="date" id="fsFrom" value="${R.from}" onchange="fsSet('custom')"><span>–</span><input type="date" id="fsTo" value="${R.to}" onchange="fsSet('custom')"><button onclick="fsSet('month')">This Month</button><button onclick="fsSet('all')">All</button></div>
+      <h3 style="margin:10px 0 4px">1. Trading Account (வர்த்தகக் கணக்கு)</h3><div style="overflow-x:auto"><table class="items-table"><thead><tr><th>Particulars</th><th style="text-align:right">₹</th></tr></thead><tbody>
+      ${row('Opening Stock (FIFO)', T.op)}${row('Purchases', T.pu)}${row('Less: Purchase Returns (at cost)', -T.pr)}${row('Sales', T.sa)}${row('Less: Sales Returns', -T.sr)}${row('Closing Stock (FIFO)', T.cl)}
+      ${Math.abs(adj) > 0.5 ? row('Stock adjustment (குறைந்த Stock விற்பனை)', adj) : ''}
+      <tr style="font-weight:700;background:#fefce8"><td>${gp >= 0 ? 'Gross Profit (மொத்த லாபம்)' : 'Gross Loss (மொத்த நட்டம்)'}</td><td style="text-align:right;color:${gp >= 0 ? '#15803d' : '#b91c1c'}">${fN(gp)}</td></tr></tbody></table></div>
+      <h3 style="margin:14px 0 4px">2. Profit &amp; Loss Account (இலாப நட்டக் கணக்கு)</h3><div style="overflow-x:auto"><table class="items-table"><tbody>
+      ${row(gp >= 0 ? 'Gross Profit b/d' : 'Gross Loss b/d', gp)}
+      <tr><td colspan="2" style="font-weight:700;background:#f1f5f9">Other Income (பிற வருமானம்)</td></tr>${X.inc.map(([n, v]) => row('&nbsp;&nbsp;' + escH(n), v)).join('') || '<tr><td colspan="2" style="color:#94a3b8">Ledger / பதிவுகள் இல்லை</td></tr>'}${row('மொத்த வருமானம்', X.ti, 'font-weight:700')}
+      <tr><td colspan="2" style="font-weight:700;background:#f1f5f9">Other Expenses (பிற செலவுகள்)</td></tr>${X.exp.map(([n, v]) => row('&nbsp;&nbsp;' + escH(n), v)).join('') || '<tr><td colspan="2" style="color:#94a3b8">Ledger / பதிவுகள் இல்லை</td></tr>'}${row('மொத்தச் செலவு', X.te, 'font-weight:700')}
+      <tr style="font-weight:700;background:#fefce8"><td>${net >= 0 ? 'Net Profit (நிகர லாபம்)' : 'Net Loss (நிகர நட்டம்)'}</td><td style="text-align:right;color:${net >= 0 ? '#15803d' : '#b91c1c'}">${fN(net)}</td></tr></tbody></table></div>
+      <h3 style="margin:14px 0 4px">3. Item-wise FIFO Profit</h3><div style="overflow-x:auto"><table class="items-table" style="min-width:480px"><thead><tr><th>Item</th><th>Sold Qty</th><th style="text-align:right">Sales</th><th style="text-align:right">FIFO Cost</th><th style="text-align:right">Profit</th></tr></thead><tbody>
+      ${items.map(([n, r]) => { const p = (r.sa - r.sr) - (r.cg - r.sc); return `<tr><td>${escH(n)}${r.neg ? ' ⚠️' : ''}</td><td>${r.qs}</td><td style="text-align:right">${fN(r.sa - r.sr)}</td><td style="text-align:right">${fN(r.cg - r.sc)}</td><td style="text-align:right;color:${p >= 0 ? '#15803d' : '#b91c1c'}">${fN(p)}</td></tr>`; }).join('') || '<tr><td colspan="5">விற்பனை இல்லை</td></tr>'}</tbody></table></div>
+      <p style="font-size:11.5px;color:#64748b">⚠️ = வாங்கியதை விட அதிகம் விற்றது; அந்தப் பகுதிக்கு Item-இன் Purchase Rate செலவாக எடுக்கப்பட்டது.</p>
+      <h3 style="margin:14px 0 4px">4. நிலை சுருக்கம் (தற்போதைய நிலை)</h3><div style="overflow-x:auto"><table class="items-table"><tbody>${row('Closing Stock', T.cl)}${row('Cash In Hand', B.cIn)}${row('Bank Balance', B.bIn)}${row('To Be Received (வர வேண்டியது)', B.toRec)}${row('சொத்துக்கள் கூட்டு', assets, 'font-weight:700')}${row('Less: To Be Paid (கொடுக்க வேண்டியது)', -(B.toPay || 0))}${row('மொத்தச் சொத்து (கடன் கழித்தபின்)', assets - (B.toPay || 0), 'font-weight:700;color:#a16207')}</tbody></table></div>
+      <details style="margin-top:14px"><summary style="font-weight:700;cursor:pointer">5. கணக்கியல் பதிவுகள் / Journal (Dr–Cr) · ${J.length} பதிவுகள்</summary><div style="overflow-x:auto"><table class="items-table" style="min-width:460px"><thead><tr><th>Date</th><th>Voucher</th><th>Account</th><th style="text-align:right">Dr</th><th style="text-align:right">Cr</th></tr></thead><tbody>
+      ${J.map(j => j.L.map((l, i) => `<tr><td>${i ? '' : j.d}</td><td>${i ? '' : escH(j.no) + ' <small>' + j.tag + '</small>'}</td><td>${escH(l[0])}</td><td style="text-align:right">${l[1] ? fN(l[1]) : ''}</td><td style="text-align:right">${l[2] ? fN(l[2]) : ''}</td></tr>`).join('')).join('')}
+      <tr style="font-weight:700"><td colspan="3">மொத்தம் ${Math.abs(jd - jc) < 1 ? '✓ சமம்' : '⚠️ வேறுபாடு'}</td><td style="text-align:right">${fN(jd)}</td><td style="text-align:right">${fN(jc)}</td></tr></tbody></table></div></details>`;
+    }
+
+    /* ===== Mobile Back button + exit warning ===== */
+    (function () {
+      const SCREENS = ['renderDuplicateCleanup', 'showDashboard', 'renderGenericList', 'renderOrderFilter', 'renderUnifiedFilter', 'renderItemList', 'renderAccountList', 'renderGroupList', 'renderVoucherList', 'renderCashBank', 'renderBankRegister', 'renderHsnSummaryReport', 'renderHsnVoucherHistory', 'renderPartyLedger', 'renderItemHistory', 'renderItemValueReport', 'renderReturnForm', 'renderReturnList', 'renderFinancialStatement', 'renderJournalList'], REPLACE = ['renderPartyLedger', 'renderItemHistory'];
+      let NAV = [], replay = false, armed = false, allowExit = false;
+      const key = x => x.n + JSON.stringify(x.a);
+      SCREENS.forEach(n => {
+        const f = window[n]; if (typeof f !== 'function') return;
+        window[n] = function (...a) {
+          if (!replay && a.every(x => x === null || typeof x !== 'object')) {
+            const r = { n, a }, top = NAV[NAV.length - 1];
+            if (!top || key(top) !== key(r)) { if (top && top.n === n && REPLACE.includes(n)) NAV[NAV.length - 1] = r; else NAV.push(r); if (NAV.length > 30) NAV.shift(); }
+          }
+          return f.apply(this, a);
+        };
+      });
+      const lo = window.logoutAuth; if (typeof lo === 'function') window.logoutAuth = function () { const r = lo.apply(this, arguments); if (!currentAuthUser) NAV = []; return r; };
+      function arm() { if (armed) return; armed = true; history.replaceState({ nav: 'base' }, ''); history.pushState({ nav: 'app' }, ''); }
+      ['click', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, arm, { once: true, capture: true }));
+      window.addEventListener('popstate', e => {
+        if (!armed || allowExit || !e.state || e.state.nav !== 'base') return;
+        const keep = () => history.pushState({ nav: 'app' }, '');
+        const open = Array.from(document.querySelectorAll('.modal-overlay.active'));
+        if (open.length) { open[open.length - 1].classList.remove('active'); keep(); return; }
+        if (NAV.length > 1) { NAV.pop(); const r = NAV[NAV.length - 1]; replay = true; try { window[r.n](...r.a); } finally { replay = false; } keep(); return; }
+        if (confirm('⚠️ App-இல் இருந்து வெளியேற வேண்டுமா?\n\nசேமிக்காத மாற்றங்கள் இருந்தால் இழக்கப்படலாம்.\n\nOK = வெளியேறு   |   Cancel = இங்கேயே இரு')) { allowExit = true; history.back(); } else keep();
+      });
+      window.addEventListener('beforeunload', e => { if (!armed || allowExit) return; e.preventDefault(); e.returnValue = ''; });
+    })();
     window.onload = () => { initAuth(); initKeyboardNav(); initFormNav(); };
   </script>
 </body>
