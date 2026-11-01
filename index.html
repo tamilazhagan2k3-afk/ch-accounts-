@@ -5785,7 +5785,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       const items = Object.entries(I).filter(([, r]) => r.sa || r.sr || r.cg).sort((a, b) => (b[1].sa - b[1].cg) - (a[1].sa - a[1].cg));
       const J = fsJournal(R.from, R.to); let jd = 0, jc = 0; J.forEach(j => j.L.forEach(l => { jd += +l[1] || 0; jc += +l[2] || 0; }));
       const assets = T.cl + (B.cIn || 0) + (B.bIn || 0) + (B.toRec || 0);
-      el('mainContainer').innerHTML = `<h2 class="page-title">📈 Financial Statement <span style="font-size:13px;color:#a16207">· ${R.from || R.to ? (R.from || '…') + ' → ' + (R.to || '…') : 'All Dates'}</span></h2>
+      el('mainContainer').innerHTML = `<h2 class="page-title" data-esc-back="1">📈 Financial Statement <span style="font-size:13px;color:#a16207">· ${R.from || R.to ? (R.from || '…') + ' → ' + (R.to || '…') : 'All Dates'}</span></h2>
       <p class="section-subtitle">Purchase/Sales Order + Returns அடிப்படை · FIFO · GST நீங்கலான மதிப்பு · Invoices சேர்க்கப்படவில்லை</p>
       <div class="dash-filter"><input type="date" id="fsFrom" value="${R.from}" onchange="fsSet('custom')"><span>–</span><input type="date" id="fsTo" value="${R.to}" onchange="fsSet('custom')"><button onclick="fsSet('month')">This Month</button><button onclick="fsSet('all')">All</button></div>
       <h3 style="margin:10px 0 4px">1. Trading Account (வர்த்தகக் கணக்கு)</h3><div style="overflow-x:auto"><table class="items-table"><thead><tr><th>Particulars</th><th style="text-align:right">₹</th></tr></thead><tbody>
