@@ -503,7 +503,7 @@
       <div class="modal-body">
         <div class="form-group" style="margin-bottom:10px;">
           <label>Select Item Group</label>
-          <div class="input-with-button"><select id="mMatGroup" class="form-control"></select><button class="btn-quick-add" onclick="openGroupModal('MATERIAL')">+Group</button></div>
+          <div class="input-with-button" style="align-items:flex-end;"><div id="mMatGroup_casc" style="flex:1;display:flex;gap:6px;flex-wrap:wrap;"></div><select id="mMatGroup" class="form-control" style="display:none"></select><button class="btn-quick-add" onclick="openGroupModal('MATERIAL')">+Group</button></div>
         </div>
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
           <div class="form-group"><label>Item Name *</label><input type="text" id="mMatName" class="form-control"></div>
@@ -537,7 +537,7 @@
       <div class="modal-body">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px;">
-            <strong>Columns: 1.Item Name | 2.Alias | 3.Group | 4.HSN | 5.Unit | 6.Opening Quantity | 7.Pur.Rate | 8.Sales Rate | 9.GST%</strong>
+            <strong>Columns: 1.Item Name | 2.Alias | 3.Group | 4.Sub Group | 5.Parent Group | 6.HSN | 7.Unit | 8.Opening Quantity | 9.Pur.Rate | 10.Sales Rate | 11.GST%</strong>
             <div>
               <button class="btn btn-sm btn-convert" onclick="downloadSampleCsv()">⬇️ Sample CSV</button>
               <button class="btn btn-sm btn-save" onclick="exportItemsCsv()">⬇️ Export Excel (CSV)</button>
@@ -546,6 +546,7 @@
               <button class="btn btn-sm btn-save" onclick="loadSampleBulkRows()">✨ Load Sample</button>
             </div>
           </div>
+          <div style="margin-top:6px;color:#166534;">Hierarchy: <b>Parent Group ▶ Sub Group ▶ Group ▶ Item</b>. Item, கடைசியாக நிரப்பிய Group-ல் சேரும் (Group காலி என்றால் Sub Group, அதுவும் காலி என்றால் Parent Group). Master-ல் இல்லாத Group / Sub Group / Parent Group தானாக உருவாகும். பழைய 9-column Excel-உம் வேலை செய்யும் (Group மட்டும்).</div>
           <div style="margin-top:6px;color:#166534;">Unit column-ல் புதிய Unit-ஐயும் பயன்படுத்தலாம். Opening Quantity-ல் ஆரம்ப இருப்பை உள்ளிடவும்; அது Item Master இருப்பில் சேர்க்கப்படும்.</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
@@ -555,8 +556,8 @@
         <textarea id="bulkPasteTextarea" class="form-control" rows="5" style="font-family:monospace;font-size:12px;" placeholder="Excel-ல் இருந்து Copy செய்த வரிசைகளை இங்கே Paste (Ctrl+V) செய்யவும்..." oninput="if(!window.__bulkPastePending)parseBulkPreview()" onpaste="window.__bulkPastePending=true;setTimeout(()=>{window.__bulkPastePending=false;parseBulkPreview();},100)"></textarea>
         <div id="bulkPreviewContainer" style="display:none;margin-top:10px;">
           <div style="font-size:13px;font-weight:700;margin-bottom:5px;" id="bulkPreviewSummaryText"></div>
-          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--bdr);">
-            <table class="items-table"><thead><tr><th>#</th><th>Item Name</th><th>Alias</th><th>Group</th><th>HSN</th><th>Unit</th><th>Opening Quantity</th><th>Pur.Rate</th><th>Sales Rate</th><th>GST%</th><th>Status</th></tr></thead><tbody id="bulkPreviewTableBody"></tbody></table>
+          <div style="max-height:200px;overflow:auto;border:1px solid var(--bdr);">
+            <table class="items-table"><thead><tr><th>#</th><th>Item Name</th><th>Alias</th><th>Group</th><th>Sub Group</th><th>Parent Group</th><th>HSN</th><th>Unit</th><th>Opening Quantity</th><th>Pur.Rate</th><th>Sales Rate</th><th>GST%</th><th>Status</th></tr></thead><tbody id="bulkPreviewTableBody"></tbody></table>
           </div>
         </div>
       </div>
@@ -610,15 +611,81 @@
             <input type="text" id="be_unit" class="form-control" style="flex:1;margin-left:8px;" placeholder="புதிய Unit type செய்யலாம்" autocomplete="off" oninput="handleUnitSearch(this,'beUnitDrop')" onfocus="handleUnitSearch(this,'beUnitDrop')">
             <div id="beUnitDrop" class="autocomplete-dropdown" style="left:90px;right:0;"></div>
           </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="be_group_chk"> Item Group
-            <select id="be_group" class="form-control" style="flex:1;margin-left:8px;"></select>
-          </label>
+          <div style="display:flex;align-items:flex-end;gap:8px;font-size:13px;">
+            <input type="checkbox" id="be_group_chk" style="margin-bottom:8px;"> <span style="margin-bottom:6px;">Item Group</span>
+            <div id="be_group_casc" style="flex:1;margin-left:8px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+            <select id="be_group" class="form-control" style="display:none"></select>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-cancel" onclick="closeModal('bulkEditItemModal')">Cancel</button>
         <button class="btn btn-save" onclick="applyBulkEditItems()">✅ Apply Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5b. Group Bulk Import Modal -->
+  <div id="groupBulkImportModal" class="modal-overlay sub-modal">
+    <div class="modal-dialog" style="max-width:820px;">
+      <div class="modal-header"><h3 id="gbTitle">📥 Bulk Import Groups (Excel Copy-Paste / CSV)</h3><button class="close-btn" onclick="closeModal('groupBulkImportModal')">&times;</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="gbType" value="MATERIAL">
+        <input type="file" id="gbCsvFileInput" accept=".csv,.txt" style="display:none" onchange="handleGroupBulkCsvUpload(event)">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px;">
+            <strong>Columns: 1.Group Name | 2.Parent Group Name</strong>
+            <div>
+              <button class="btn btn-sm btn-convert" onclick="downloadSampleGroupCsv()">⬇️ Sample CSV</button>
+              <button class="btn btn-sm btn-save" onclick="exportGroupsCsv()">⬇️ Export Excel (CSV)</button>
+              <button class="btn btn-sm btn-print" onclick="copyAllGroupsToClipboard()">📋 Copy All Groups</button>
+              <button class="btn btn-sm btn-print" onclick="el('gbCsvFileInput').click()">📂 Upload CSV</button>
+              <button class="btn btn-sm btn-save" onclick="loadSampleGroupRows()">✨ Load Sample</button>
+            </div>
+          </div>
+          <div style="margin-top:6px;color:#166534;">Parent Group பெயர் காலியாக இருந்தால் புதிய Group "Primary"-ல் உருவாகும்; ஏற்கனவே உள்ள Group-ன் Parent மாறாது. Parent பெயர் Master-ல் இல்லையென்றால் அது புதிய Group-ஆக உருவாக்கப்படும்.</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" id="gbUpdateExisting" checked> ஏற்கனவே உள்ள Group பெயர் வந்தால் அதன் Parent Group-ஐ Update செய்</label>
+        <textarea id="gbPasteTextarea" class="form-control" rows="5" style="font-family:monospace;font-size:12px;" placeholder="Excel-ல் இருந்து Copy செய்த வரிசைகளை இங்கே Paste (Ctrl+V) செய்யவும்..." oninput="parseGroupBulkPreview()"></textarea>
+        <div id="gbPreviewContainer" style="display:none;margin-top:10px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:5px;" id="gbPreviewSummary"></div>
+          <div style="max-height:240px;overflow-y:auto;border:1px solid var(--bdr);">
+            <table class="items-table"><thead><tr><th>#</th><th>Group Name</th><th>Parent Group</th><th>Status</th></tr></thead><tbody id="gbPreviewBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel" onclick="closeModal('groupBulkImportModal')">Cancel</button>
+        <button class="btn btn-convert" onclick="confirmGroupBulkImport()">📥 Import All Groups</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5c. Group Multi-Field Edit Modal -->
+  <div id="groupBulkEditModal" class="modal-overlay sub-modal">
+    <div class="modal-dialog" style="max-width:520px;">
+      <div class="modal-header">
+        <h3>✏️ Multi-Select Edit Groups (<span id="gbeCount">0</span>)</h3>
+        <button class="close-btn" onclick="closeModal('groupBulkEditModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="gbeType" value="MATERIAL">
+        <p style="font-size:12.5px;color:#64748b;margin-bottom:12px;">தேர்ந்தெடுத்த Group-களில் <strong>மாற்ற விரும்பும் field-ஐ மட்டும்</strong> டிக் பண்ணி மதிப்பை உள்ளிடவும்.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="gbe_parent_chk"> Parent Group
+            <select id="gbe_parent" class="form-control" style="flex:1;margin-left:8px;"></select>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="gbe_name_chk"> Name Find → Replace
+            <input type="text" id="gbe_find" class="form-control" style="flex:1;margin-left:8px;" placeholder="தேட வேண்டிய சொல்">
+            <input type="text" id="gbe_repl" class="form-control" style="flex:1;" placeholder="மாற்றும் சொல்">
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel" onclick="closeModal('groupBulkEditModal')">Cancel</button>
+        <button class="btn btn-save" onclick="applyGroupBulkEdit()">✅ Apply Changes</button>
       </div>
     </div>
   </div>
@@ -677,7 +744,27 @@
   </div>
 
 
-  <div id="bulkAccountModal" class="modal-overlay sub-modal"><div class="modal-dialog" style="max-width:820px;"><div class="modal-header"><h3>📥 Bulk Import Accounts (Excel Copy-Paste / CSV)</h3><button class="close-btn" onclick="closeModal('bulkAccountModal')">&times;</button></div><div class="modal-body"><div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:12px;"><strong>Columns: 1.Account Name | 2.Group Name | 3.Address | 4.GSTIN | 5.Phone | 6.Opening Balance</strong><div style="margin-top:6px;color:#166534;">Group Name காலியாக இருந்தால் Default Group பயன்படும்.</div></div><div class="form-group"><label>Default Group</label><select id="bulkAccDefaultGroup" class="form-control"></select></div><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" id="bulkAccUpdateExisting" checked> ஏற்கனவே உள்ள Account எனில் Update செய்</label><textarea id="bulkAccPaste" class="form-control" rows="7" style="font-family:monospace;font-size:12px;" placeholder="Excel-ல் Copy செய்த Account வரிசைகளை Paste செய்யவும்..."></textarea></div><div class="modal-footer"><button class="btn btn-cancel" onclick="closeModal('bulkAccountModal')">Cancel</button><button class="btn btn-convert" onclick="confirmBulkAccountImport()">📥 Import All Accounts</button></div></div></div>
+  <div id="bulkAccountModal" class="modal-overlay sub-modal"><div class="modal-dialog" style="max-width:980px;"><div class="modal-header"><h3>📥 Bulk Import Accounts (Excel Copy-Paste / CSV)</h3><button class="close-btn" onclick="closeModal('bulkAccountModal')">&times;</button></div><div class="modal-body">
+    <input type="file" id="accCsvFileInput" accept=".csv,.txt" style="display:none" onchange="handleAccBulkCsvUpload(event)">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px;">
+        <strong>Columns: 1.Account Name | 2.Group Name | 3.Sub Group | 4.Primary Group | 5.Address | 6.Phone | 7.GST No | 8.Opening Balance</strong>
+        <div>
+          <button class="btn btn-sm btn-convert" onclick="downloadSampleAccountCsv()">⬇️ Sample CSV</button>
+          <button class="btn btn-sm btn-save" onclick="exportAccountsCsv()">⬇️ Export Excel (CSV)</button>
+          <button class="btn btn-sm btn-print" onclick="copyAllAccountsToExcel()">📋 Copy All Accounts</button>
+          <button class="btn btn-sm btn-print" onclick="el('accCsvFileInput').click()">📂 Upload CSV</button>
+          <button class="btn btn-sm btn-save" onclick="loadSampleAccountRows()">✨ Load Sample</button>
+        </div>
+      </div>
+      <div style="margin-top:6px;color:#166534;">Hierarchy: <b>Primary Group ▶ Sub Group ▶ Group ▶ Account</b>. Account, கடைசியாக நிரப்பிய Group-ல் சேரும். Master-ல் இல்லாத Group-கள் தானாக உருவாகும். மூன்றும் காலி என்றால் புதிய Account-க்கு Default Group; ஏற்கனவே உள்ள Account-ன் Group மாறாது. பழைய 6-column Excel-உம் வேலை செய்யும்.</div>
+    </div>
+    <div class="form-group"><label>Default Group</label><select id="bulkAccDefaultGroup" class="form-control"></select></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" id="bulkAccUpdateExisting" checked> ஏற்கனவே உள்ள Account எனில் Update செய் (காலி கட்டங்கள் பழைய மதிப்பை மாற்றாது)</label>
+    <textarea id="bulkAccPaste" class="form-control" rows="6" style="font-family:monospace;font-size:12px;" placeholder="Excel-ல் Copy செய்த Account வரிசைகளை Paste செய்யவும்..." oninput="parseAccountBulkPreview()"></textarea>
+    <div id="accBulkPreviewBox" style="display:none;margin-top:10px;"><div style="font-size:13px;font-weight:700;margin-bottom:5px;" id="accBulkPreviewSummary"></div>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--bdr);"><table class="items-table"><thead><tr><th>#</th><th>Account Name</th><th>Group</th><th>Sub Group</th><th>Primary Group</th><th>Address</th><th>Phone</th><th>GST No</th><th style="text-align:right">Opening Balance</th><th>Status</th></tr></thead><tbody id="accBulkPreviewBody"></tbody></table></div></div>
+  </div><div class="modal-footer"><button class="btn btn-cancel" onclick="closeModal('bulkAccountModal')">Cancel</button><button class="btn btn-convert" onclick="confirmBulkAccountImport()">📥 Import All Accounts</button></div></div></div>
   <div id="bulkEditAccountModal" class="modal-overlay sub-modal"><div class="modal-dialog" style="max-width:520px;"><div class="modal-header"><h3>✏️ Multi-Select Edit Accounts (<span id="bulkAccEditCount">0</span>)</h3><button class="close-btn" onclick="closeModal('bulkEditAccountModal')">&times;</button></div><div class="modal-body"><div class="form-group"><label><input type="checkbox" id="beAccGroupChk"> Change Account Group</label><select id="beAccGroup" class="form-control"></select></div><div class="form-group"><label><input type="checkbox" id="beAccGstChk"> Change GSTIN</label><input id="beAccGst" class="form-control"></div><div class="form-group"><label><input type="checkbox" id="beAccPhoneChk"> Change Phone</label><input id="beAccPhone" class="form-control"></div><div class="form-group"><label><input type="checkbox" id="beAccAddressChk"> Change Address</label><textarea id="beAccAddress" class="form-control" rows="2"></textarea></div><div class="form-group"><label><input type="checkbox" id="beAccBalanceChk"> Change Opening Balance</label><input id="beAccBalance" type="number" step="any" class="form-control"></div></div><div class="modal-footer"><button class="btn btn-cancel" onclick="closeModal('bulkEditAccountModal')">Cancel</button><button class="btn btn-save" onclick="applyBulkEditAccounts()">✅ Apply Changes</button></div></div></div>
   <div id="invoiceInputModal" class="modal-overlay sub-modal">
     <div class="modal-dialog" style="max-width:400px;">
@@ -1168,6 +1255,25 @@
       const stk = getItemStock(m.name);
       const unit = m.unit || '';
       return `${stk}${unit ? ' ' + unit : ''}`;
+    }
+
+    /** Item-ன் [Group, Sub Group, Parent Group]. Group = Item உள்ள Group; 2 நிலை என்றால் Parent Group மட்டும், 3+ நிலை என்றால் Sub + Parent. */
+    function itemGroupCols(m, tree) {
+      tree = tree || APP_DB.MATERIAL_GROUPS_TREE || [];
+      const g = m.groupId ? tree.find(x => x.id === m.groupId) : null;
+      const p = g && g.parentId ? tree.find(x => x.id === g.parentId) : null;
+      const gp = p && p.parentId ? tree.find(x => x.id === p.parentId) : null;
+      if (!g) return ['', '', ''];
+      if (!p) return [g.name, '', ''];
+      if (!gp) return [g.name, '', p.name];
+      return [g.name, p.name, gp.name];
+    }
+    /** Item Master List இருப்பு: Unit அளவு × Qty → L / Kg / M ஆக மாற்றி காட்டும் (எ.கா. 15 × 500ML = 7.5 L).
+     *  Bag, Nos, Number's போன்ற எண்ணிக்கை Unit-களுக்கு பழைய முறையே. */
+    function fmtItemStockTotal(m) {
+      const c = classifyUnit(m.unit);
+      if (c.type === 'Count') return fmtItemStock(m);
+      return formatVolume(getItemStock(m.name), m.unit);
     }
 
     /** Group name contains "No tax" / "NoTax" → GST 0%, Orders only */
@@ -3229,6 +3335,7 @@
       const tree = APP_DB[treeKey] || [];
       el(selId).innerHTML = (treeKey === 'MATERIAL_GROUPS_TREE' ? `<option value="">-- Primary --</option>` : '') +
         tree.map(g => `<option value="${g.id}" ${g.id === defVal ? 'selected' : ''}>${getBreadcrumb(tree, g.id)}</option>`).join('');
+      if (GCASC[selId]) gcascRefresh(selId);
     }
 
     function openItemModal(prefill = "", row = null, editIdx = null) {
@@ -3244,6 +3351,7 @@
         el('mMatHsn').value = "3209"; el('mMatPurchaseRate').value = ""; el('mMatSalesRate').value = "";
         el('mMatUnit').value = "1L";
       }
+      gcascRefresh('mMatGroup');
       el('newMaterialModal').classList.add('active');
     }
 
@@ -3313,12 +3421,13 @@
             placeholder="முதல் 10 எழுத்து / Alias type செய்யவும்..."
             oninput="filterItemList()" autocomplete="off">
           <label style="font-size:12.5px;font-weight:600;margin-left:8px;">📁 Group (Multi-Select):</label>
-          <select id="itemGroupFilter" class="form-control" style="width:200px;" onchange="filterItemList()">
+          <span id="itemGroupFilter_casc" style="display:inline-flex;gap:6px;align-items:flex-end;flex-wrap:wrap;"></span>
+          <select id="itemGroupFilter" class="form-control" style="display:none;" onchange="filterItemList()">
             <option value="">-- அனைத்து Groups --</option>
             <option value="__NONE__">Primary (No Group)</option>
             ${tree.map(g => `<option value="${g.id}">${getBreadcrumb(tree, g.id)}</option>`).join('')}
           </select>
-          <button class="btn btn-sm btn-cancel" onclick="el('itemSearchInput').value='';el('itemGroupFilter').value='';filterItemList();">Clear</button>
+          <button class="btn btn-sm btn-cancel" onclick="el('itemSearchInput').value='';el('itemGroupFilter').value='';gcascRefresh('itemGroupFilter');filterItemList();">Clear</button>
           <span id="itemFilterHint" style="font-size:12px;color:#64748b;"></span>
         </div>
 
@@ -3328,7 +3437,7 @@
               <th style="width:36px">
                 <input type="checkbox" id="allChk_ITEM" class="row-check" onchange="toggleVisibleItemChecks(this.checked)">
               </th>
-              <th>#</th><th>Item Name</th><th>Alias</th><th>Group</th><th>HSN</th><th>Unit</th>
+              <th>#</th><th>Item Name</th><th>Alias</th><th>Group</th><th>Sub Group</th><th>Parent Group</th><th>HSN</th><th>Unit</th>
               <th style="text-align:center;background:#fef3c7">Opening Quantity</th>
               <th style="text-align:center;background:#ecfdf5">இருப்பு</th>
               <th style="text-align:right">Pur.Rate</th><th style="text-align:right">Sales Rate</th>
@@ -3351,11 +3460,12 @@
                 <td class="row-num">${i + 1}</td>
                 <td><strong>${escH(m.name)}</strong>${noTax ? ' <span class="alias-tag" style="background:#fee2e2;color:#b91c1c;">No Tax</span>' : ''}</td>
                 <td>${m.alias ? `<span class="alias-tag">${escH(m.alias)}</span>` : '-'}</td>
-                <td>${escH(tree.find(g => g.id === m.groupId)?.name || 'Primary')}</td>
+                ${(() => { const [g, sg, pg] = itemGroupCols(m, tree); const d = '<span style="color:#94a3b8">-</span>';
+                  return `<td>${escH(g || 'Primary')}</td><td>${sg ? escH(sg) : d}</td><td>${pg ? escH(pg) : d}</td>`; })()}
                 <td>${escH(m.hsn || '-')}</td>
                 <td>${escH(m.unit)}</td>
                 <td style="text-align:center;background:#fffbeb">${fmtQty(m.openingQty)}</td>
-                <td style="text-align:center;font-weight:800;color:#15803d">${fmtItemStock(m)}</td>
+                <td style="text-align:center;font-weight:800;color:#15803d">${fmtItemStockTotal(m)}</td>
                 <td style="text-align:right">${fmt(m.purchaseRate)}</td>
                 <td style="text-align:right">${fmt(m.salesRate)}</td>
                 <td>${noTax ? '0' : m.gst}%</td>
@@ -3365,9 +3475,10 @@
                   <button class="btn btn-sm btn-delete" onclick="deleteItemByIndex(${oi})">🗑️</button>
                 </td>
               </tr>`;
-            }).join('') || `<tr><td colspan="12" style="text-align:center;padding:30px">பொருட்கள் இல்லை</td></tr>`}
+            }).join('') || `<tr><td colspan="14" style="text-align:center;padding:30px">பொருட்கள் இல்லை</td></tr>`}
           </tbody>
         </table>`;
+      gcascRefresh('itemGroupFilter');
     }
 
     function filterItemList() {
@@ -3376,6 +3487,8 @@
       const rows = document.querySelectorAll('#itemListBody tr.item-row');
       let visible = 0;
       let num = 0;
+      // Parent / Sub Group தேர்ந்தால் அதன் கீழ் உள்ள அனைத்து Group-களின் Items-உம் வரும்
+      const gset = (grp && grp !== '__NONE__') ? new Set([grp, ...groupDescendantIds(APP_DB.MATERIAL_GROUPS_TREE || [], grp)]) : null;
 
       rows.forEach(tr => {
         const name = tr.dataset.name || '';
@@ -3391,7 +3504,7 @@
         // Group filter: only when selected
         let groupOk = true;
         if (grp) {
-          groupOk = (group === grp);
+          groupOk = gset ? gset.has(group) : (group === grp);
         }
 
         const show = nameOk && groupOk;
@@ -3525,21 +3638,21 @@
       el('bulkMaterialModal').classList.add('active');
     }
     function loadSampleBulkRows() {
-      el('bulkPasteTextarea').value = `Item Name\tAlias\tGroup\tHSN\tUnit\tOpening Quantity\tPurRate\tSalesRate\tGST
-Asian Paints TruCare Exterior Primer 20L\tTCEP20\tExterior Primers\t3209\t20L\t10\t2450\t2800\t18
-Apex Ultima Exterior Emulsion 20L\tAU20\tExterior Paints\t3209\t20L\t5\t5400\t6100\t18
-JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
+      el('bulkPasteTextarea').value = `Item Name\tAlias\tGroup\tSub Group\tParent Group\tHSN\tUnit\tOpening Quantity\tPurRate\tSalesRate\tGST
+Asian Paints TruCare Exterior Primer 20L\tTCEP20\tExterior Primers\tExterior\tAsian Paints\t3209\t20L\t10\t2450\t2800\t18
+Apex Ultima Exterior Emulsion 20L\tAU20\tExterior Emulsion\tExterior\tAsian Paints\t3209\t20L\t5\t5400\t6100\t18
+JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t\t\t3214\t50Kg\t20\t720\t850\t18`;
       parseBulkPreview();
     }
     function getItemGroupName(groupId){if(!groupId)return '';const find=(nodes)=>{for(const n of(nodes||[])){if(n.id===groupId)return n.name;const r=find(n.children||[]);if(r)return r;}return '';};return find(APP_DB.MATERIAL_GROUPS_TREE);}
     function getAccountGroupName(groupId){if(!groupId)return '';const find=(nodes)=>{for(const n of(nodes||[])){if(n.id===groupId)return n.name;const r=find(n.children||[]);if(r)return r;}return '';};return find(APP_DB.SUPPLIER_GROUPS_TREE);}
-    function buildItemsExportText(separator,onlyIndexes=null){const source=(APP_DB.MATERIALS||[]).map((m,i)=>({m,i})).filter(x=>!onlyIndexes||onlyIndexes.has(x.i));const rows=source.map(({m})=>[m.name||'',m.alias||'',getItemGroupName(m.groupId),m.hsn||'',m.unit||'Unit',m.openingQty??0,m.purchaseRate??0,m.salesRate??0,m.gst??0]);const esc=v=>{v=String(v??'');return separator===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return ['Item Name,Alias,Group Name,HSN Code,Unit,Opening Quantity,Purchase Rate,Sales Rate,GST %'].concat(rows.map(r=>r.map(esc).join(separator))).join('\n');}
+    function buildItemsExportText(separator,onlyIndexes=null){const source=(APP_DB.MATERIALS||[]).map((m,i)=>({m,i})).filter(x=>!onlyIndexes||onlyIndexes.has(x.i));const rows=source.map(({m})=>{const [g,sg,pg]=itemGroupCols(m);return [m.name||'',m.alias||'',g,sg,pg,m.hsn||'',m.unit||'Unit',m.openingQty??0,m.purchaseRate??0,m.salesRate??0,m.gst??0];});const esc=v=>{v=String(v??'');return separator===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return ['Item Name,Alias,Group,Sub Group,Parent Group,HSN Code,Unit,Opening Quantity,Purchase Rate,Sales Rate,GST %'].concat(rows.map(r=>r.map(esc).join(separator))).join('\n');}
     function exportItemsCsv(){if(!(APP_DB.MATERIALS||[]).length)return alert('Export செய்ய Item எதுவும் இல்லை.');const csv=buildItemsExportText(',');saveFileCompat('Items_Export_'+new Date().toISOString().slice(0,10)+'.csv',"\ufeff"+csv,'text/csv;charset=utf-8;');}
     async function copyItemsToClipboard(){if(!(APP_DB.MATERIALS||[]).length)return alert('Copy செய்ய Item எதுவும் இல்லை.');await copyTextToClipboard(buildItemsExportText('\t'),'அனைத்து Items உம் Copy செய்யப்பட்டன.');}
     async function copySelectedItemsToExcel(){const idxs=new Set(Array.from(document.querySelectorAll('.chk-item:checked')).map(c=>parseInt(c.value,10)));if(!idxs.size)return alert('Copy செய்ய குறைந்தது ஒரு Item-ஐ தேர்ந்தெடுக்கவும்!');await copyTextToClipboard(buildItemsExportText('\t',idxs),idxs.size+' selected Items Excel-க்கு Copy செய்யப்பட்டன.');}
     async function copyTextToClipboard(text,successMsg){try{await navigator.clipboard.writeText(text);alert(successMsg+' Excel-ல் Paste (Ctrl+V) செய்யலாம்.');}catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert(successMsg);}}
     function downloadSampleCsv() {
-      saveFileCompat("Item_Template.csv", "Item Name,Alias,Group Name,HSN Code,Unit,Opening Quantity,Purchase Rate,Sales Rate,GST %\nTruCare Primer 20L,TCEP20,Primers,3209,20L,10,2450,2800,18", "text/csv");
+      saveFileCompat("Item_Template.csv", "Item Name,Alias,Group,Sub Group,Parent Group,HSN Code,Unit,Opening Quantity,Purchase Rate,Sales Rate,GST %\nTruCare Primer 20L,TCEP20,Primers,Exterior,Asian Paints,3209,20L,10,2450,2800,18", "text/csv");
     }
     function handleBulkCsvUpload(e) {
       const f = e.target.files[0]; if (!f) return;
@@ -3565,19 +3678,23 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         };
         // New 9-column format includes Opening Quantity after Unit.
         // Older 8/7/4-column formats remain supported.
-        const item = c.length >= 9
+        const item = c.length >= 10
+          ? { name:c[0], alias:c[1], grp:c[2], sub:c[3], par:c[4], hsn:c[5], unit:c[6]||'Unit', openingQty:num(c[7]), pr:num(c[8]), sr:num(c[9]), gst:gstRate(c[10]) }
+          : c.length >= 9
           ? { name:c[0], alias:c[1], grp:c[2], hsn:c[3], unit:c[4]||'Unit', openingQty:num(c[5]), pr:num(c[6]), sr:num(c[7]), gst:gstRate(c[8]) }
           : c.length === 8
             ? { name:c[0], alias:c[1], grp:c[2], hsn:c[3], unit:c[4]||'Unit', openingQty:0, pr:num(c[5]), sr:num(c[6]), gst:gstRate(c[7]) }
             : c.length === 7
               ? { name:c[0], alias:'', grp:c[1], hsn:c[2], unit:c[3]||'Unit', openingQty:0, pr:num(c[4]), sr:num(c[5]), gst:gstRate(c[6]) }
               : { name:c[0], alias:c[1]||'', grp:'', hsn:'3209', unit:'Unit', openingQty:0, pr:num(c[2]), sr:num(c[3]||c[2]), gst:18 };
+        item.sub = String(item.sub || '').trim().replace(/\s+/g, ' '); item.par = String(item.par || '').trim().replace(/\s+/g, ' ');
+        item.grp = String(item.grp || '').trim().replace(/\s+/g, ' ');
         item.exists = APP_DB.MATERIALS.some(m => m.name.toLowerCase() === item.name.toLowerCase());
         bulkList.push(item);
       });
       el('bulkPreviewTableBody').innerHTML = bulkList.map((it, i) => `<tr>
         <td>${i+1}</td><td><strong>${escH(it.name)}</strong></td><td>${escH(it.alias||'-')}</td>
-        <td>${escH(it.grp||'Default')}</td><td>${escH(it.hsn)}</td><td>${escH(it.unit)}</td>
+        <td>${escH(it.grp||(it.sub||it.par ? '-' : 'Default'))}</td><td>${escH(it.sub||'-')}</td><td>${escH(it.par||'-')}</td><td>${escH(it.hsn)}</td><td>${escH(it.unit)}</td>
         <td style="text-align:right;background:#fffbeb"><input type="number" min="0" step="any" value="${Number(it.openingQty)||0}" style="width:100px;text-align:right;font-weight:700" onchange="bulkList[${i}].openingQty=Math.max(0,Number(this.value)||0)"></td>
         <td>${fmt(it.pr)}</td><td>${fmt(it.sr)}</td><td>${escH(it.gst)}%</td>
         <td><span class="badge-path">${it.exists?'Update':'New'}</span></td></tr>`).join('');
@@ -3588,13 +3705,11 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     function confirmBulkImport() {
       if (!bulkList.length) return alert("Paste Excel rows first!");
       const defGrp = el('bulkDefaultGroup').value || null, upd = el('bulkUpdateExisting').checked;
+      const gStat = { created: 0, adopted: 0, seq: 0 };
       bulkList.forEach(it => {
         let gId = defGrp;
-        if (it.grp) {
-          let g = APP_DB.MATERIAL_GROUPS_TREE.find(x => x.name.toLowerCase() === it.grp.toLowerCase());
-          if (!g) { g = { id: 'GRP_' + Date.now() + Math.random(), name: it.grp, parentId: null }; APP_DB.MATERIAL_GROUPS_TREE.push(g); }
-          gId = g.id;
-        }
+        const chain = [it.par, it.sub, it.grp].filter(Boolean);       // Parent ▶ Sub ▶ Group
+        if (chain.length) gId = ensureGroupChain(APP_DB.MATERIAL_GROUPS_TREE, chain, gStat);
         const idx = APP_DB.MATERIALS.findIndex(m => m.name.toLowerCase() === it.name.toLowerCase());
         const oq = Math.max(0, Number(it.openingQty) || 0);
         const rec = { name: it.name, alias: it.alias, groupId: gId, hsn: it.hsn, unit: it.unit || 'Unit', openingQty: oq, purchaseRate: it.pr, salesRate: it.sr, gst: it.gst };
@@ -3606,6 +3721,29 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         } else APP_DB.MATERIALS.push(rec);
       });
       saveDB(); closeModal('bulkMaterialModal'); renderItemList();
+      if (gStat.created || gStat.adopted) alert(`✅ Import முடிந்தது!\n\nபுதிய Groups உருவானவை: ${gStat.created}` + (gStat.adopted ? `\nHierarchy-ல் இணைக்கப்பட்ட பழைய Groups: ${gStat.adopted}` : ''));
+    }
+
+    /** Parent ▶ Sub ▶ Group பெயர் வரிசைக்கு Group-கள் இருந்தால் பயன்படுத்தும்; இல்லையென்றால் உருவாக்கும். கடைசி Group-ன் id திரும்பும். */
+    function ensureGroupChain(tree, names, st, protect) {
+      let prev = null;
+      names.forEach((nm, i) => {
+        const same = x => nameKey(x.name) === nameKey(nm);
+        let g = null;
+        if (names.length === 1) g = tree.find(same);                                    // ஒரே பெயர் → எங்கிருந்தாலும் அதே Group (பழைய முறை)
+        else if (i === 0) g = tree.find(x => same(x) && !x.parentId) || tree.find(same);
+        else {
+          g = tree.find(x => same(x) && x.parentId === prev.id);
+          if (!g) {                                                                     // பழைய தனி (Primary) Group இருந்தால் Hierarchy-ல் இணை
+            const root = tree.find(x => same(x) && !x.parentId);
+            if (root && protect && protect.has(root.id)) g = root;                       // Default Group-ஐ நகர்த்தாமல் அப்படியே பயன்படுத்து
+            else if (root && root.id !== prev.id && !groupDescendantIds(tree, root.id).has(prev.id)) { root.parentId = prev.id; g = root; st.adopted++; }
+          }
+        }
+        if (!g) { g = { id: 'GRP_' + Date.now() + '_' + (++st.seq), name: nm, parentId: prev ? prev.id : null }; tree.push(g); st.created++; }
+        prev = g;
+      });
+      return prev.id;
     }
 
     function openSupplierModal(prefill = "", isAuto = false, editIdx = null) {
@@ -3697,48 +3835,74 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       <table class="items-table" id="accMasterTbl"><thead><tr><th style="width:36px"><input type="checkbox" id="allChk_ACC" class="row-check" onchange="toggleAllChecks('chk-acc',this.checked,'bulkBtn_ACC','bulkCnt_ACC','allChk_ACC','editBtn_ACC');updateBulkEditAccBtn()"></th><th>#</th><th>Account Name</th><th>Group</th><th>Address</th><th>GSTIN</th><th>Phone</th><th style="text-align:right">Closing Balance</th><th style="text-align:center">Action</th></tr></thead><tbody>${sups.map(a=>{const i=(APP_DB.SUPPLIERS||[]).indexOf(a);const b=calcPartyBal(a);return `<tr ondblclick="openSupplierModal('',false,${i})" title="Double-click = Edit"><td><input type="checkbox" class="row-check chk-acc" value="${i}" onchange="bindMultiSelect('chk-acc','bulkBtn_ACC','bulkCnt_ACC','allChk_ACC','editBtn_ACC');updateBulkEditAccBtn()"></td><td>${i+1}</td><td><strong>${escH(a.name)}</strong></td><td><span class="badge-path">${escH(getAccountGroupName(a.groupId)||'Primary')}</span></td><td>${escH(a.address||'-')}</td><td>${escH(a.gst||'-')}</td><td>${escH(a.phone||'-')}</td><td style="text-align:right;font-weight:700">${fmt(b.amount)} ${b.type}</td><td style="text-align:center"><button class="btn btn-sm btn-print" onclick="renderPartyLedger(${jsArg(a.name||'')})">📜 Statement</button><button class="btn btn-sm btn-save" onclick="openSupplierModal('',false,${i})">✏️</button><button class="btn btn-sm btn-delete" onclick="deleteAccountByIndex(${i})">🗑️</button></td></tr>`;}).join('')||`<tr><td colspan="9" style="text-align:center;padding:30px">கணக்குகள் இல்லை</td></tr>`}</tbody></table>`;updateBulkEditAccBtn();}
     
     function updateBulkEditAccBtn(){const checked=document.querySelectorAll('.chk-acc:checked');const btn=el('bulkEditBtn_ACC'),cnt=el('bulkEditCnt_ACC');if(btn){btn.style.display=checked.length?'inline-block':'none';if(cnt)cnt.innerText=checked.length;}const singleBtn=el('editBtn_ACC');if(singleBtn)singleBtn.style.display=checked.length===1?'inline-block':'none';}
-    function buildAccountsExportText(separator,onlyIndexes=null){const source=(APP_DB.SUPPLIERS||[]).map((a,i)=>({a,i})).filter(x=>!onlyIndexes||onlyIndexes.has(x.i));const rows=source.map(({a})=>[a.name||'',getAccountGroupName(a.groupId),a.address||'',a.gst||'',a.phone||'',a.balance??0]);const esc=v=>{v=String(v??'');return separator===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return ['Account Name,Group Name,Address,GSTIN,Phone,Opening Balance'].concat(rows.map(r=>r.map(esc).join(separator))).join('\n');}
+    function buildAccountsExportText(separator,onlyIndexes=null){const source=(APP_DB.SUPPLIERS||[]).map((a,i)=>({a,i})).filter(x=>!onlyIndexes||onlyIndexes.has(x.i));const rows=source.map(({a})=>{const [g,sg,pg]=itemGroupCols(a,APP_DB.SUPPLIER_GROUPS_TREE);return [a.name||'',g,sg,pg,a.address||'',a.phone||'',a.gst||'',a.balance??0];});const esc=v=>{v=String(v??'');return separator===','&&/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};return ['Account Name,Group Name,Sub Group,Primary Group,Address,Phone,GST No,Opening Balance'].concat(rows.map(r=>r.map(esc).join(separator))).join('\n');}
     async function copySelectedAccountsToExcel(){const idxs=new Set(Array.from(document.querySelectorAll('.chk-acc:checked')).map(c=>parseInt(c.value,10)));if(!idxs.size)return alert('Copy செய்ய குறைந்தது ஒரு Account-ஐ தேர்ந்தெடுக்கவும்!');await copyTextToClipboard(buildAccountsExportText('\t',idxs),idxs.size+' selected Accounts Excel-க்கு Copy செய்யப்பட்டன.');}
     async function copyAllAccountsToExcel(){if(!(APP_DB.SUPPLIERS||[]).length)return alert('Copy செய்ய Account எதுவும் இல்லை.');await copyTextToClipboard(buildAccountsExportText('\t'),'அனைத்து Accounts உம் Copy செய்யப்பட்டன.');}
-    function openBulkAccountModal(){populateGrpSelect('bulkAccDefaultGroup','SUPPLIER_GROUPS_TREE','SG_SUPPLIER');el('bulkAccPaste').value='';el('bulkAccUpdateExisting').checked=true;el('bulkAccountModal').classList.add('active');}
+    function openBulkAccountModal(){populateGrpSelect('bulkAccDefaultGroup','SUPPLIER_GROUPS_TREE','SG_SUPPLIER');el('bulkAccPaste').value='';el('bulkAccUpdateExisting').checked=true;el('accBulkPreviewBox').style.display='none';el('bulkAccountModal').classList.add('active');}
+
+    /** Paste செய்த Account வரிசைகளை Parse செய்யும். புதிய 8-column அல்லது பழைய 6-column. */
+    function parseAccountRows() {
+      const cells = el('bulkAccPaste').value.replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim()).map(gbSplitLine);
+      const hasHeader = cells.length && /^(account\s*name|account|name|party\s*name)$/i.test(String(cells[0][0] || '').trim());
+      const headerNew = hasHeader && /sub\s*group|prim[ae]ry|parent\s*group/i.test(cells[0].join('|'));
+      const isNew = hasHeader ? headerNew : cells.some(c => c.length >= 7);
+      const nz = v => String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
+      const rows = [];
+      cells.forEach((c, i) => {
+        if ((i === 0 && hasHeader) || !nz(c[0])) return;
+        const bal = v => { const t = String(v == null ? '' : v).trim(); return t === '' ? null : (parseFloat(t.replace(/[^0-9.-]/g, '')) || 0); };
+        rows.push(isNew
+          ? { name: nz(c[0]), grp: nz(c[1]), sub: nz(c[2]), pri: nz(c[3]), address: String(c[4] || '').trim(), phone: String(c[5] || '').trim(), gst: String(c[6] || '').trim(), balance: bal(c[7]) }
+          : { name: nz(c[0]), grp: nz(c[1]), sub: '', pri: '', address: String(c[2] || '').trim(), gst: String(c[3] || '').trim(), phone: String(c[4] || '').trim(), balance: bal(c[5]) });
+      });
+      return { isNew, rows };
+    }
+    function parseAccountBulkPreview() {
+      const { isNew, rows } = parseAccountRows();
+      const have = new Set((APP_DB.SUPPLIERS || []).map(a => nameKey(a.name)));
+      el('accBulkPreviewBody').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td><strong>${escH(r.name)}</strong></td><td>${escH(r.grp || '-')}</td><td>${escH(r.sub || '-')}</td><td>${escH(r.pri || '-')}</td><td>${escH(r.address || '-')}</td><td>${escH(r.phone || '-')}</td><td>${escH(r.gst || '-')}</td><td style="text-align:right">${r.balance == null ? '-' : fmt(r.balance)}</td><td><span class="badge-path">${have.has(nameKey(r.name)) ? 'Update' : 'New'}</span></td></tr>`).join('');
+      el('accBulkPreviewSummary').innerText = `Preview: ${rows.length} Accounts Ready (${isNew ? '8-column' : 'பழைய 6-column'} format)`;
+      el('accBulkPreviewBox').style.display = rows.length ? 'block' : 'none';
+    }
+    function loadSampleAccountRows() {
+      el('bulkAccPaste').value = 'Account Name\tGroup Name\tSub Group\tPrimary Group\tAddress\tPhone\tGST No\tOpening Balance\nABC Traders\tSupplier\t\tSundry Creditors\tTiruppur\t9876543210\t33ABCDE1234F1Z5\t12500\nRam Stores\tCustomer\t\tSundry Debtors\tAvinashi\t9000000000\t\t4000';
+      parseAccountBulkPreview();
+    }
+    function handleAccBulkCsvUpload(e) {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => { el('bulkAccPaste').value = String(ev.target.result || '').replace(/^\ufeff/, ''); parseAccountBulkPreview(); };
+      r.readAsText(f); e.target.value = '';
+    }
+    function downloadSampleAccountCsv() {
+      saveFileCompat('Account_Template.csv', 'Account Name,Group Name,Sub Group,Primary Group,Address,Phone,GST No,Opening Balance\nABC Traders,Supplier,,Sundry Creditors,Tiruppur,9876543210,33ABCDE1234F1Z5,12500', 'text/csv');
+    }
+    function exportAccountsCsv() {
+      if (!(APP_DB.SUPPLIERS || []).length) return alert('Export செய்ய Account எதுவும் இல்லை.');
+      saveFileCompat('Accounts_Export_' + new Date().toISOString().slice(0, 10) + '.csv', '\ufeff' + buildAccountsExportText(','), 'text/csv;charset=utf-8;');
+    }
     async function confirmBulkAccountImport(){
-      const lines = el('bulkAccPaste').value.trim().split(/\r?\n/).filter(l => l.trim());
-      if (!lines.length) return alert('Excel-ல் copy செய்த வரிசைகளை paste செய்யவும்.');
+      const { rows } = parseAccountRows();
+      if (!rows.length) return alert('Excel-ல் copy செய்த வரிசைகளை paste செய்யவும்.');
       const defGroup = el('bulkAccDefaultGroup').value || 'SG_SUPPLIER';
       const updateExisting = el('bulkAccUpdateExisting').checked;
       let added = 0, updated = 0, skipped = 0;
       if (!APP_DB.SUPPLIERS) APP_DB.SUPPLIERS = [];
       if (!APP_DB.SUPPLIER_GROUPS_TREE) APP_DB.SUPPLIER_GROUPS_TREE = [];
-      lines.forEach((l, i) => {
-        const c = l.includes('\t') ? l.split('\t').map(x => x.trim()) : l.split(',').map(x => x.trim());
-        if (!c[0] || (i === 0 && /account|name/i.test(c[0]))) return;
-        // Resolve group from Excel column 2 (Group Name); fallback to Default Group
-        let groupId = defGroup;
-        const grpName = (c[1] || '').trim();
-        if (grpName) {
-          let g = APP_DB.SUPPLIER_GROUPS_TREE.find(x => nameKey(x.name) === nameKey(grpName));
-          if (!g) {
-            g = { id: 'SG_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name: grpName, parentId: null };
-            APP_DB.SUPPLIER_GROUPS_TREE.push(g);
-          }
-          groupId = g.id;
-        }
-        const rec = {
-          name: c[0].trim().replace(/\s+/g, ' '),
-          groupId,
-          address: c[2] || '',
-          gst: c[3] || '',
-          phone: c[4] || '',
-          balance: parseFloat(String(c[5] || '0').replace(/[^0-9.-]/g, '')) || 0
-        };
-        const idx = APP_DB.SUPPLIERS.findIndex(a => nameKey(a.name) === nameKey(rec.name));
+      const gStat = { created: 0, adopted: 0, seq: 0 }, protect = new Set(['SG_SUPPLIER', 'SG_CUSTOMER', 'SG_SUNDRY_CREDITORS', 'SG_SUNDRY_DEBTORS']);
+      rows.forEach(r => {
+        const idx = APP_DB.SUPPLIERS.findIndex(a => nameKey(a.name) === nameKey(r.name));
+        if (idx > -1 && !updateExisting) { skipped++; return; }
+        const chain = [r.pri, r.sub, r.grp].filter(Boolean);            // Primary ▶ Sub ▶ Group
+        const gId = chain.length ? ensureGroupChain(APP_DB.SUPPLIER_GROUPS_TREE, chain, gStat, protect) : null;
         if (idx > -1) {
-          if (updateExisting) {
-            APP_DB.SUPPLIERS[idx] = { ...APP_DB.SUPPLIERS[idx], ...rec };
-            updated++;
-          } else skipped++;
+          const old = APP_DB.SUPPLIERS[idx];                            // காலி கட்டம் பழைய மதிப்பை அழிக்காது
+          APP_DB.SUPPLIERS[idx] = { ...old, name: r.name, groupId: gId || old.groupId || defGroup,
+            address: r.address || old.address || '', gst: r.gst || old.gst || '', phone: r.phone || old.phone || '',
+            balance: r.balance == null ? (old.balance || 0) : r.balance };
+          updated++;
         } else {
-          APP_DB.SUPPLIERS.push(rec);
+          APP_DB.SUPPLIERS.push({ name: r.name, groupId: gId || defGroup, address: r.address, gst: r.gst, phone: r.phone, balance: r.balance == null ? 0 : r.balance });
           added++;
         }
       });
@@ -3747,7 +3911,8 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       accSearchText = '';
       accSelectedGroup = '';
       renderAccountList();
-      alert('Import முடிந்தது.\nபுதிய Accounts: ' + added + '\nUpdate: ' + updated + (skipped ? ('\nSkip (duplicate): ' + skipped) : ''));
+      alert('Import முடிந்தது.\nபுதிய Accounts: ' + added + '\nUpdate: ' + updated + (skipped ? ('\nSkip (duplicate): ' + skipped) : '') +
+        (gStat.created ? ('\nபுதிய Groups: ' + gStat.created) : '') + (gStat.adopted ? ('\nHierarchy-ல் இணைக்கப்பட்ட பழைய Groups: ' + gStat.adopted) : ''));
     }
     function openBulkEditAccounts(){const checked=Array.from(document.querySelectorAll('.chk-acc:checked'));if(!checked.length)return alert('குறைந்தது ஒரு Account-ஐ தேர்ந்தெடுக்கவும்!');el('bulkAccEditCount').innerText=checked.length;populateGrpSelect('beAccGroup','SUPPLIER_GROUPS_TREE');['beAccGroupChk','beAccGstChk','beAccPhoneChk','beAccAddressChk','beAccBalanceChk'].forEach(id=>el(id).checked=false);['beAccGst','beAccPhone','beAccAddress','beAccBalance'].forEach(id=>el(id).value='');el('bulkEditAccountModal').classList.add('active');}
     function applyBulkEditAccounts(){const idxs=Array.from(document.querySelectorAll('.chk-acc:checked')).map(c=>parseInt(c.value,10));if(!idxs.length)return alert('Account எதுவும் தேர்ந்தெடுக்கப்படவில்லை.');idxs.forEach(i=>{const a=APP_DB.SUPPLIERS[i];if(!a)return;if(el('beAccGroupChk').checked)a.groupId=el('beAccGroup').value||a.groupId;if(el('beAccGstChk').checked)a.gst=el('beAccGst').value.trim();if(el('beAccPhoneChk').checked)a.phone=el('beAccPhone').value.trim();if(el('beAccAddressChk').checked)a.address=el('beAccAddress').value.trim();if(el('beAccBalanceChk').checked)a.balance=parseFloat(el('beAccBalance').value)||0;});saveDB();closeModal('bulkEditAccountModal');renderAccountList();alert('Selected Accounts update செய்யப்பட்டன.');}
@@ -3802,25 +3967,207 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       else renderGroupList(type);
     }
 
+    /* ---------- Group cascade: Parent Group ▶ Sub Group ▶ Group (Item entry / Multi-Field Edit / Filter) ---------- */
+    const GCASC = {
+      mMatGroup: { tree: 'MATERIAL_GROUPS_TREE', rootLabel: '-- Primary (No Group) --' },
+      be_group: { tree: 'MATERIAL_GROUPS_TREE', rootLabel: '-- Primary (No Group) --' },
+      itemGroupFilter: { tree: 'MATERIAL_GROUPS_TREE', rootLabel: '-- அனைத்து Groups --', extra: [['__NONE__', 'Primary (No Group)']], onChange: () => filterItemList() }
+    };
+    function gcascLabel(d) { return ['Parent Group', 'Sub Group', 'Group'][d] || ('Sub Level ' + (d + 1)); }
+    function gcascRefresh(selId) {
+      const cfg = GCASC[selId], box = el(selId + '_casc'), sel = el(selId);
+      if (!cfg || !box || !sel) return;
+      const tree = APP_DB[cfg.tree] || [], cur = sel.value || '';
+      const path = []; let c = (cur && cur !== '__NONE__') ? tree.find(g => g.id === cur) : null, guard = 0;
+      while (c && guard++ < 50) { path.unshift(c.id); c = c.parentId ? tree.find(g => g.id === c.parentId) : null; }
+      const out = []; let parentId = null;
+      for (let d = 0; d <= path.length; d++) {
+        const kids = tree.filter(g => (g.parentId || null) === parentId);
+        if (d > 0 && !kids.length) break;
+        const val = (d === 0 && cur === '__NONE__') ? '__NONE__' : (path[d] || '');
+        const first = d === 0
+          ? `<option value="">${cfg.rootLabel}</option>` + (cfg.extra || []).map(([v, t]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${t}</option>`).join('')
+          : `<option value="">-- ${gcascLabel(d)} தேர்வு இல்லை --</option>`;
+        out.push(`<div style="flex:1;min-width:130px;"><div style="font-size:10.5px;color:#64748b;font-weight:600;margin-bottom:2px;">${gcascLabel(d)}</div>` +
+          `<select class="form-control" onchange="gcascPick('${selId}',${d},this.value)">${first}${kids.map(g => `<option value="${g.id}" ${g.id === val ? 'selected' : ''}>${escH(g.name)}</option>`).join('')}</select></div>`);
+        if (!path[d]) break;
+        parentId = path[d];
+      }
+      box.innerHTML = out.join('');
+    }
+    function gcascPick(selId, d, v) {
+      const box = el(selId + '_casc'), sel = el(selId), cfg = GCASC[selId]; if (!box || !sel) return;
+      const selects = box.querySelectorAll('select');
+      sel.value = (!v && d > 0) ? selects[d - 1].value : v;      // கீழ் நிலை காலியானால் மேல் நிலை Group
+      const chk = el(selId + '_chk'); if (chk) chk.checked = true;
+      gcascRefresh(selId);
+      if (cfg.onChange) cfg.onChange();
+    }
+
+    function groupTreeKey(type) { return type === 'MATERIAL' ? 'MATERIAL_GROUPS_TREE' : 'SUPPLIER_GROUPS_TREE'; }
+    /** id-யின் அனைத்து child / sub-child group id-கள் */
+    function groupDescendantIds(tree, id) {
+      const out = new Set(), walk = pid => tree.forEach(g => { if (g.parentId === pid && !out.has(g.id)) { out.add(g.id); walk(g.id); } });
+      walk(id); return out;
+    }
+    function groupParentName(tree, g) { const p = g.parentId ? tree.find(x => x.id === g.parentId) : null; return p ? p.name : ''; }
+
     function renderGroupList(type) {
-      const key = type === 'MATERIAL' ? 'MATERIAL_GROUPS_TREE' : 'SUPPLIER_GROUPS_TREE', tree = APP_DB[key];
+      const key = groupTreeKey(type), tree = APP_DB[key];
       el('mainContainer').innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-          <h2 class="page-title">${type === 'MATERIAL' ? 'Item Groups' : 'Account Groups'}</h2>
+          <h2 class="page-title">${type === 'MATERIAL' ? 'Item Groups' : 'Account Groups'} (${tree.length})</h2>
           <div>
-            <button id="editBtn_grp_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="editSelectedGroup('${type}')">✏️ Edit Selected</button>
+            <button id="editBtn_grp_${type}" class="btn btn-save" style="display:none;background:#2563eb;" onclick="editSelectedGroup('${type}')">✏️ Edit Selected (Full)</button>
+            <button id="bulkEditBtn_grp_${type}" class="btn btn-save" style="display:none;background:#7c3aed;" onclick="openGroupBulkEdit('${type}')">✏️ Multi-Field Edit (<span id="bulkEditCnt_grp_${type}">0</span>)</button>
+            <button class="btn btn-convert" onclick="openGroupBulkModal('${type}')">📥 Excel Bulk Import</button>
+            <button class="btn btn-print" onclick="copySelectedGroupsToExcel('${type}')">📋 Copy Selected to Excel</button>
             <button class="btn btn-save" onclick="openGroupModal('${type}')">+ New Group</button>
             <button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
           </div>
         </div>
-        <p class="section-subtitle">☑️ ஒரு Group Select → Edit Selected · அல்லது ✏️ / Double-click</p>
-        <table class="items-table"><thead><tr>
-          <th style="width:36px"><input type="checkbox" id="allChk_grp_${type}" class="row-check" onchange="toggleAllChecks('chk-grp-${type}',this.checked,'','','allChk_grp_${type}','editBtn_grp_${type}')"></th>
-          <th>#</th><th>Group Name</th><th>Hierarchy Path</th><th style="text-align:center">Action</th></tr></thead>
-        <tbody>${tree.map((g, i) => `<tr ondblclick="openGroupModal('${type}','${g.id}')" title="Double-click = Edit">
-          <td><input type="checkbox" class="row-check chk-grp-${type}" value="${g.id}" onchange="bindMultiSelect('chk-grp-${type}','','','allChk_grp_${type}','editBtn_grp_${type}')"></td>
-          <td>${i+1}</td><td><strong>${escH(g.name)}</strong></td><td><span class="badge-path">${escH(getBreadcrumb(tree, g.id))}</span></td>
-          <td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openGroupModal('${type}','${g.id}')">✏️</button> ${['SG_SUPPLIER','SG_CUSTOMER','SG_SUNDRY_CREDITORS','SG_SUNDRY_DEBTORS'].includes(g.id)?'':`<button class="btn btn-sm btn-delete" onclick="APP_DB['${key}']=APP_DB['${key}'].filter(x=>x.id!=='${g.id}');saveDB();renderGroupList('${type}')">🗑️</button>`}</td></tr>`).join('')}</tbody></table>`;
+        <p class="section-subtitle">☑️ Group Select → Edit Selected (Full) / Multi-Field Edit · அல்லது ✏️ / Double-click</p>
+        <table class="items-table" id="groupMasterTbl_${type}"><thead><tr>
+          <th style="width:36px"><input type="checkbox" id="allChk_grp_${type}" class="row-check" onchange="toggleAllChecks('chk-grp-${type}',this.checked,'bulkEditBtn_grp_${type}','bulkEditCnt_grp_${type}','allChk_grp_${type}','editBtn_grp_${type}')"></th>
+          <th>#</th><th>Group Name</th><th>Parent Group</th><th>Hierarchy Path</th><th style="text-align:center">Action</th></tr></thead>
+        <tbody>${tree.map((g, i) => { const pn = groupParentName(tree, g); return `<tr ondblclick="openGroupModal('${type}','${g.id}')" title="Double-click = Edit">
+          <td><input type="checkbox" class="row-check chk-grp-${type}" value="${g.id}" onchange="bindMultiSelect('chk-grp-${type}','bulkEditBtn_grp_${type}','bulkEditCnt_grp_${type}','allChk_grp_${type}','editBtn_grp_${type}')"></td>
+          <td>${i+1}</td><td><strong>${escH(g.name)}</strong></td><td>${pn ? escH(pn) : '<span style="color:#94a3b8">Primary</span>'}</td><td><span class="badge-path">${escH(getBreadcrumb(tree, g.id))}</span></td>
+          <td style="text-align:center"><button class="btn btn-sm btn-save" onclick="openGroupModal('${type}','${g.id}')">✏️</button> ${['SG_SUPPLIER','SG_CUSTOMER','SG_SUNDRY_CREDITORS','SG_SUNDRY_DEBTORS'].includes(g.id)?'':`<button class="btn btn-sm btn-delete" onclick="APP_DB['${key}']=APP_DB['${key}'].filter(x=>x.id!=='${g.id}');saveDB();renderGroupList('${type}')">🗑️</button>`}</td></tr>`; }).join('')}</tbody></table>`;
+    }
+
+    /* ---------- Group: Export / Copy ---------- */
+    function buildGroupsExportText(type, separator, onlyIds = null) {
+      const tree = APP_DB[groupTreeKey(type)] || [];
+      const esc = v => { v = String(v ?? ''); return separator === ',' && /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      const rows = tree.filter(g => !onlyIds || onlyIds.has(g.id)).map(g => [g.name || '', groupParentName(tree, g)]);
+      return ['Group Name,Parent Group'].concat(rows.map(r => r.map(esc).join(separator))).join('\n');
+    }
+    async function copySelectedGroupsToExcel(type) {
+      const ids = new Set(Array.from(document.querySelectorAll('.chk-grp-' + type + ':checked')).map(c => c.value));
+      if (!ids.size) return alert('Copy செய்ய குறைந்தது ஒரு Group-ஐ தேர்ந்தெடுக்கவும்!');
+      await copyTextToClipboard(buildGroupsExportText(type, '\t', ids), ids.size + ' selected Groups Excel-க்கு Copy செய்யப்பட்டன.');
+    }
+    async function copyAllGroupsToClipboard() {
+      const type = el('gbType').value;
+      if (!(APP_DB[groupTreeKey(type)] || []).length) return alert('Copy செய்ய Group எதுவும் இல்லை.');
+      await copyTextToClipboard(buildGroupsExportText(type, '\t'), 'அனைத்து Groups உம் Copy செய்யப்பட்டன.');
+    }
+    function exportGroupsCsv() {
+      const type = el('gbType').value;
+      if (!(APP_DB[groupTreeKey(type)] || []).length) return alert('Export செய்ய Group எதுவும் இல்லை.');
+      saveFileCompat((type === 'MATERIAL' ? 'ItemGroups_Export_' : 'AccountGroups_Export_') + new Date().toISOString().slice(0, 10) + '.csv', '\ufeff' + buildGroupsExportText(type, ','), 'text/csv;charset=utf-8;');
+    }
+    function downloadSampleGroupCsv() {
+      saveFileCompat('Group_Template.csv', 'Group Name,Parent Group\nAsian Tools,\nSandpaper,Asian Tools', 'text/csv');
+    }
+
+    /* ---------- Group: Bulk Import ---------- */
+    let gbList = [];
+    function openGroupBulkModal(type) {
+      el('gbType').value = type;
+      el('gbTitle').innerText = '📥 Bulk Import ' + (type === 'MATERIAL' ? 'Item' : 'Account') + ' Groups (Excel Copy-Paste / CSV)';
+      el('gbPasteTextarea').value = ''; el('gbPreviewContainer').style.display = 'none'; gbList = [];
+      el('groupBulkImportModal').classList.add('active');
+    }
+    function loadSampleGroupRows() {
+      el('gbPasteTextarea').value = 'Group Name\tParent Group\nAsian Tools\t\nSandpaper\tAsian Tools\nExterior Paints\t';
+      parseGroupBulkPreview();
+    }
+    function handleGroupBulkCsvUpload(e) {
+      const f = e.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => { el('gbPasteTextarea').value = String(ev.target.result || '').replace(/^\ufeff/, ''); parseGroupBulkPreview(); };
+      r.readAsText(f); e.target.value = '';
+    }
+    function gbSplitLine(l) {
+      if (l.includes('\t')) return l.split('\t').map(x => x.trim());
+      const out = []; let cur = '', q = false;
+      for (let i = 0; i < l.length; i++) {
+        const ch = l[i];
+        if (q) { if (ch === '"') { if (l[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+        else if (ch === '"') q = true;
+        else if (ch === ',') { out.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      out.push(cur.trim()); return out;
+    }
+    function parseGroupBulkPreview() {
+      const type = el('gbType').value, tree = APP_DB[groupTreeKey(type)] || [];
+      const lines = el('gbPasteTextarea').value.replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim());
+      gbList = [];
+      lines.forEach((l, i) => {
+        const c = gbSplitLine(l);
+        const name = String(c[0] || '').trim().replace(/\s+/g, ' ');
+        if (!name || (i === 0 && /^(group\s*name|name|group)$/i.test(name))) return;
+        gbList.push({ name, parent: String(c[1] || '').trim().replace(/\s+/g, ' ') });
+      });
+      const inList = new Set(gbList.map(x => nameKey(x.name)));
+      const inDb = new Set(tree.map(g => nameKey(g.name)));
+      el('gbPreviewBody').innerHTML = gbList.map((it, i) => {
+        const exists = inDb.has(nameKey(it.name));
+        const selfP = it.parent && nameKey(it.parent) === nameKey(it.name);
+        const newParent = it.parent && !selfP && !inDb.has(nameKey(it.parent)) && !inList.has(nameKey(it.parent));
+        const st = selfP ? '<span class="badge-path" style="color:#b91c1c">Skip (Parent = Self)</span>'
+          : `<span class="badge-path">${exists ? 'Update' : 'New'}</span>` + (newParent ? ' <span style="font-size:11px;color:#a16207">⚠ Parent புதிதாக உருவாகும்</span>' : '');
+        return `<tr><td>${i + 1}</td><td><strong>${escH(it.name)}</strong></td><td>${it.parent ? escH(it.parent) : '<span style="color:#94a3b8">Primary</span>'}</td><td>${st}</td></tr>`;
+      }).join('');
+      el('gbPreviewSummary').innerText = `Preview: ${gbList.length} Groups Ready`;
+      el('gbPreviewContainer').style.display = gbList.length ? 'block' : 'none';
+    }
+    function confirmGroupBulkImport() {
+      if (!gbList.length) return alert('Excel rows-ஐ முதலில் Paste செய்யவும்!');
+      const type = el('gbType').value, key = groupTreeKey(type), tree = APP_DB[key], upd = el('gbUpdateExisting').checked;
+      let seq = 0, created = 0, updated = 0, skipped = 0;
+      const find = nm => tree.find(g => nameKey(g.name) === nameKey(nm));
+      const make = nm => { const g = { id: 'GRP_' + Date.now() + '_' + (++seq), name: nm, parentId: null }; tree.push(g); created++; return g; };
+      gbList.forEach(it => {
+        let g = find(it.name); const isNew = !g;
+        if (!g) g = make(it.name);
+        if (!it.parent) return;                                   // Parent காலி → புதிய = Primary, பழையது = மாற்றமில்லை
+        if (!isNew && !upd) return;                               // Update tick இல்லை
+        if (nameKey(it.parent) === nameKey(g.name)) { skipped++; return; }
+        let p = find(it.parent); if (!p) p = make(it.parent);
+        if (p.id === g.id || groupDescendantIds(tree, g.id).has(p.id)) { skipped++; return; }   // cycle தடுப்பு
+        if (g.parentId !== p.id) { g.parentId = p.id; if (!isNew) updated++; }
+      });
+      saveDB(); closeModal('groupBulkImportModal'); renderGroupList(type);
+      alert(`✅ Group Import முடிந்தது!\n\nபுதிய Groups: ${created}\nParent Update: ${updated}` + (skipped ? `\nSkip (Parent தவறு / சுழற்சி): ${skipped}` : ''));
+    }
+
+    /* ---------- Group: Multi-Field Edit ---------- */
+    function openGroupBulkEdit(type) {
+      const ids = Array.from(document.querySelectorAll('.chk-grp-' + type + ':checked')).map(c => c.value);
+      if (!ids.length) return alert('குறைந்தது ஒரு Group-ஐ தேர்ந்தெடுக்கவும்!');
+      const tree = APP_DB[groupTreeKey(type)] || [];
+      const banned = new Set(ids); ids.forEach(id => groupDescendantIds(tree, id).forEach(d => banned.add(d)));   // சுழற்சி வராமல் இருக்க
+      el('gbeType').value = type; el('gbeCount').innerText = ids.length;
+      el('gbe_parent').innerHTML = '<option value="">-- Primary (No Parent) --</option>' +
+        tree.filter(g => !banned.has(g.id)).map(g => `<option value="${g.id}">${escH(getBreadcrumb(tree, g.id))}</option>`).join('');
+      el('gbe_parent_chk').checked = false; el('gbe_name_chk').checked = false;
+      el('gbe_find').value = ''; el('gbe_repl').value = '';
+      el('groupBulkEditModal').classList.add('active');
+    }
+    function applyGroupBulkEdit() {
+      const type = el('gbeType').value, tree = APP_DB[groupTreeKey(type)] || [];
+      const ids = Array.from(document.querySelectorAll('.chk-grp-' + type + ':checked')).map(c => c.value);
+      if (!ids.length) return alert('எந்த Group-ம் தேர்ந்தெடுக்கப்படவில்லை!');
+      const doParent = el('gbe_parent_chk').checked, doName = el('gbe_name_chk').checked;
+      if (!doParent && !doName) return alert('எந்த field-ம் தேர்ந்தெடுக்கப்படவில்லை!\nமாற்ற விரும்பும் field-ஐ டிக் பண்ணவும்.');
+      const find = el('gbe_find').value, repl = el('gbe_repl').value;
+      if (doName && !find) return alert('Find பெட்டியில் தேட வேண்டிய சொல்லை உள்ளிடவும்!');
+      const newParent = el('gbe_parent').value || null, re = doName ? new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi') : null;
+      let skipped = 0;
+      ids.forEach(id => {
+        const g = tree.find(x => x.id === id); if (!g) return;
+        if (doParent) {
+          if (newParent && (newParent === g.id || groupDescendantIds(tree, g.id).has(newParent))) skipped++;
+          else g.parentId = newParent;
+        }
+        if (doName) { const nn = g.name.replace(re, repl).trim().replace(/\s+/g, ' '); if (nn) g.name = nn; }
+      });
+      saveDB(); closeModal('groupBulkEditModal'); renderGroupList(type);
+      alert(`${ids.length - skipped} Group(s) வெற்றிகரமாக Update செய்யப்பட்டது!` + (skipped ? `\n${skipped} Group Skip செய்யப்பட்டது (Parent சுழற்சி).` : ''));
     }
 
     function onVoucherModeChange() {
