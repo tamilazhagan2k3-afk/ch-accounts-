@@ -1,0 +1,608 @@
+<!doctype html><html lang="ta"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ACW Accounting v3</title>
+<style>
+:root{--t:#006b78;--d:#004d5b;--l:#9acbd0;--p:#eaf8fa}*{box-sizing:border-box}body{margin:0;background:#f2f8fa;color:#173b49;font-family:Arial,"Noto Sans Tamil",sans-serif}.wrap{max-width:1400px;margin:auto;padding:12px}.panel{border:2px solid var(--l);border-radius:18px;background:white;overflow:hidden;margin-bottom:14px;box-shadow:0 4px 13px #004b5a18}.header,.head{background:linear-gradient(110deg,#087f88,var(--d));color:white}.header{padding:10px 18px}.brand{display:flex;align-items:center;gap:15px}.factory{font-size:35px;border-right:2px solid #bdebf0;padding-right:15px}h1{font-size:clamp(20px,3vw,30px);margin:0}.year{font-size:20px;color:#ffe36b;font-weight:bold}.sub{margin:2px 0 0;font-weight:bold}.datebar{display:flex;justify-content:space-between;border-top:1px solid #a7dbe0;margin-top:8px;padding-top:7px;font-weight:bold}.head{padding:11px 17px;font-size:21px;font-weight:bold}.menu{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;padding:12px;background:#f7fcfd}.menu button{min-height:78px;border:2px solid var(--l);border-radius:14px;background:linear-gradient(white,#e9f6f8);font-weight:bold;font-size:16px;color:#173b49;cursor:pointer}.menu button.active{background:#d6f1f3;border-color:var(--t)}.labour{display:none}.labour.open{display:block}.toolbar,.actions{padding:12px 15px;display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#f7fcfd}.toolbar label,.cement label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:bold}input,select{padding:9px;border:1px solid #a9c9cd;border-radius:7px;min-width:100px;font:inherit;color:#173b49}input:disabled{background:#eef3f4;cursor:not-allowed;color:#8aa0a6}input[readonly]{background:#eef6f7}.btn{border:0;border-radius:8px;background:#087987;color:white;padding:10px 14px;font-weight:bold;cursor:pointer}.btn.alt{background:#58747c}.btn.light{background:#e1f3f5;color:#075a65;border:1px solid var(--l)}.btn.danger{background:#b3261e}.btn.small{padding:6px 10px;font-size:13px}.scroll{overflow-x:auto;padding:12px}.tbl{border-collapse:collapse;width:100%;min-width:1060px}.tbl th,.tbl td{border:1px solid #b9d7da;padding:8px;text-align:center}.tbl th{background:#e3f4f6;color:#075a65}.tbl td select,.tbl td input{width:100%}.tbl tfoot td{background:#edf7f8;font-weight:bold}.table-wrap{overflow-x:auto;max-width:100%}.table-wrap .tbl,.subpage-content .tbl,.tbl.mini{min-width:0}.wage{font-weight:bold;color:#086331;white-space:nowrap}.wage.bad{color:#b3261e}.hint{color:#54717a;font-size:13px}.cement{padding:8px 15px 16px}.cement h3{color:var(--t);margin:4px 0 10px}.cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.cement label{background:#f3fafb;border:1px solid #c6e0e3;border-radius:10px;padding:9px}.cement input{width:100%}.closing input{background:#e1f4e9;font-weight:bold;color:#086331}.note{font-size:13px;color:#54717a;padding:0 15px 12px}.status{padding:0 15px 12px;color:#086331;font-weight:bold;min-height:28px}
+.summary,.cement{display:none!important}.summary{padding:4px 15px 14px}.summary h3{color:var(--t);margin:4px 0 10px}.summary .tbl{width:auto;min-width:420px}.summary .sum td{background:#edf7f8;font-weight:bold}.sumline{margin-top:10px;padding:10px 14px;background:#e1f4e9;border:1px solid #b5dcc4;border-radius:10px;color:#086331;font-size:16px}.warn{margin-top:8px;padding:9px 12px;background:#fff4e0;border:1px solid #f0c987;border-radius:10px;color:#8a5a00;font-weight:bold}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#173b49;color:#fff;padding:11px 20px;border-radius:10px;z-index:3000;display:none;max-width:90vw;box-shadow:0 6px 20px #0004;font-weight:bold}.toast.err{background:#b3261e}
+@media(max-width:700px){.wrap{padding:7px}.menu{grid-template-columns:repeat(2,1fr)}.cgrid{grid-template-columns:repeat(2,1fr)}.head{font-size:18px}}
+.modal-backdrop{display:none;position:fixed;inset:0;z-index:1000;background:rgba(12,25,42,.58);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px}
+.modal-backdrop.show{display:flex;animation:fadeIn .16s ease-out}
+.modal-card{width:min(760px,100%);max-height:min(82vh,760px);overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 60px #0005;animation:popIn .18s ease-out}
+.modal-title{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #e0e7eb;font-size:clamp(19px,3vw,25px);font-weight:800;color:#17212d;position:sticky;top:0;background:#fff;z-index:2}
+.modal-x{margin-left:auto;border:0;background:transparent;color:#64748b;font-size:30px;line-height:1;cursor:pointer}
+.modal-options{padding:18px 22px 24px;display:grid;gap:11px}
+.modal-option{width:100%;text-align:left;padding:15px 18px;border:2px solid #d8e0e6;border-radius:13px;background:#fff;color:#17212d;font-size:clamp(15px,2.3vw,19px);font-weight:700;cursor:pointer;min-height:62px}
+.modal-option:hover,.modal-option:focus{background:var(--t);color:white;border-color:var(--d);outline:0}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes popIn{from{transform:translateY(10px) scale(.98);opacity:.7}to{transform:none;opacity:1}}
+@media(max-width:520px){.modal-backdrop{padding:10px}.modal-card{border-radius:15px}.modal-title{padding:15px}.modal-options{padding:14px}.modal-option{min-height:56px}}
+.modal-card.wide{width:min(1180px,100%)}
+.modal-options.subpage{padding:0 16px 18px}
+.modal-back{margin:14px 0 10px}
+.subpage-content{border:1px solid #d8e5e8;border-radius:12px;padding:16px;background:#fbfeff}
+.subpage-content h3{margin:0 0 10px;color:#075d68}
+.subpage-content .formline{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.subpage-content label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:bold}
+.subpage-content input,.subpage-content select{padding:10px;border:1px solid #a9c9cd;border-radius:7px}
+#modalOptions .labour{display:block!important;margin-top:8px}
+#modalOptions .labour .head:first-child{border-radius:0}
+#modalOptions .labour .actions{padding-top:10px}
+.subpage-content .formline label{min-width:170px;flex:1}
+.subpage-content .formline input,.subpage-content .formline select{width:100%;min-width:140px}
+@media(max-width:650px){.modal-card.wide{width:100%;max-height:90vh}.modal-card.wide #labourPanel{overflow-x:hidden}.modal-card.wide .scroll{max-width:100%;overflow-x:auto}.subpage-content .formline label{min-width:100%}}
+</style></head><body><main class="wrap">
+<header class="panel header"><div class="brand"><div class="factory">🏭</div><div><h1>ARUN CEMENT WORKS</h1><div class="year">ACW 2026-27</div><div class="sub">Accounting &amp; Production Management</div></div></div><div class="datebar"><span id="today"></span><span>FY : 2026 – 2027</span></div></header>
+<section class="panel"><div class="head">Main Menu</div><div class="menu"><button onclick="openMenuModal('Daily Entry')">Daily Entry</button><button onclick="openMenuModal('Production')">Production</button><button onclick="openMenuModal('Purchase')">Purchase</button><button onclick="openMenuModal('Sales')">Sales</button><button onclick="openMenuModal('Stock / BOM')">Stock / BOM</button><button onclick="openMenuModal('Receipt')">Receipt</button><button onclick="openMenuModal('Payment')">Payment</button><button onclick="openMenuModal('Bank / Cash')">Bank / Cash</button><button onclick="openMenuModal('Day Book')">Day Book</button><button onclick="openMenuModal('Reports')">Reports</button></div></section>
+<div id="labourPanelHome"></div><section class="panel labour" id="labourPanel"><div class="head">Daily Entry – Register</div>
+<div class="toolbar"><label>Entry Date<input type="date" id="date" onchange="loadDate()"></label><button class="btn light" onclick="loadDate()">Load Date</button><button class="btn light" onclick="addRow()">+ Add Labour Row</button></div>
+<div class="scroll"><table class="tbl"><thead><tr><th rowspan="2">S.No</th><th rowspan="2">Labour</th><th rowspan="2">Products</th><th rowspan="2">Quantity</th><th rowspan="2">Labour Wage (₹)</th><th colspan="4">Cement (Qty)</th></tr><tr><th>Opening Balance (A)</th><th>Used (B)</th><th>Purchase (C)</th><th>Closing (A − B + C)</th></tr></thead><tbody id="rows"></tbody><tfoot>
+<tr><td colspan="3">Total</td><td id="tqty">0</td><td id="twage">₹ 0.00</td><td colspan="4" style="text-align:left;font-size:13px;color:#075a65">Cement Stock (நாள் ஒன்றுக்கு)</td></tr>
+<tr>
+<td colspan="5" style="text-align:right;background:#edf7f8">Opening (A) → Used (B) → Purchase (C) → Closing (A−B+C)</td>
+<td><input id="opening" type="number" step=".01" readonly title="Opening Balance (A) – தானாக ஏற்றப்படும்" style="width:100%;min-width:70px;background:#eef6f7"></td>
+<td><input id="used" type="number" step=".01" min="0" value="0" oninput="calc()" title="Used (B) – Manual" style="width:100%;min-width:70px"></td>
+<td><input id="purchase" type="number" step=".01" min="0" value="0" oninput="onPurchaseInput()" title="Purchase (C) – Manual" style="width:100%;min-width:70px"></td>
+<td><input id="closing" type="number" step=".01" readonly title="Closing (A−B+C)" style="width:100%;min-width:70px;background:#e1f4e9;font-weight:bold;color:#086331"></td>
+</tr>
+</tfoot></table></div>
+<div class="summary"><h3>Wage Summary</h3><div id="summary"></div></div>
+<div class="cement" aria-hidden="true"><!-- hidden – stock inputs moved to table footer --></div>
+<div class="actions"><button class="btn" onclick="save()">Save Daily Entry</button><button class="btn alt" onclick="clearForm()">Clear Form</button><button class="btn light" onclick="useLatestRates()">Use Latest Rates</button><button class="btn danger" onclick="deleteDay()">Delete This Date's Entry</button><button class="btn light" onclick="exportDB()">Export Data (JSON)</button><label class="btn light">Import Data<input type="file" accept=".json" onchange="importDB(event)" hidden></label></div>
+<div class="note">விதி: Product தேர்வு செய்த பின்னரே Quantity உள்ளிட முடியும். மொத்தக் கூலி = Σ (Quantity × Product Database கூலி) ÷ Labour எண்ணிக்கை. Cement: Opening (A) எப்போதும் தானாக (முந்தைய Closing / 0). Used (B) & Purchase (C) மட்டும் manual. Closing = A − B + C. Data browser-இல் மட்டும் – அடிக்கடி Export (JSON) backup எடுக்கவும்.</div><div class="status" id="status"></div></section></main>
+<div class="toast" id="toast"></div>
+<div class="modal-backdrop" id="menuModal" onclick="backdropClose(event)" aria-hidden="true"><div class="modal-card" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-title"><span id="modalIcon">📋</span><span id="modalTitle">Menu</span><button class="modal-x" onclick="closeMenuModal()" aria-label="Close">×</button></div><div class="modal-options" id="modalOptions"></div></div></div>
+<script>
+const KEY='acw_labour_db_v1',DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
+const $=id=>document.getElementById(id);
+const num=v=>{v=Number(v);return Number.isFinite(v)?v:0};
+const fmt=n=>'₹ '+num(n).toFixed(2);
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+let toastTimer;
+function say(msg,err){const t=$('toast');t.textContent=msg;t.className='toast'+(err?' err':'');t.style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.style.display='none',3800);$('status').textContent=msg}
+
+/* ---------- Data ---------- */
+function summarize(rows,rates){
+ const labs=new Set(),prod={};
+ rows.forEach(r=>{
+  if(r.labour)labs.add(r.labour);
+  if(r.product){const q=num(r.qty),rt=num(rates[r.product]);const o=prod[r.product]||(prod[r.product]={qty:0,rate:rt,amt:0});o.qty+=q;o.amt+=q*rt}
+ });
+ const total=Object.values(prod).reduce((a,b)=>a+b.amt,0),count=labs.size;
+ return{prod,total,count,per:count?total/count:0};
+}
+function chain(o){let prev=null;Object.keys(o.days).sort().forEach(k=>{const d=o.days[k];if(prev!==null)d.opening=prev;d.closing=num(d.opening)-num(d.used)+num(d.purchase);prev=d.closing})}
+function normalize(d){
+ d=d&&typeof d==='object'?d:{};
+ const out={labours:[],products:[],days:{},labourDetails:{}},seen=new Set();
+ (Array.isArray(d.labours)?d.labours:[]).forEach(x=>{if(typeof x!=='string')return;x=x.trim();if(!x||seen.has(x.toLowerCase()))return;seen.add(x.toLowerCase());out.labours.push(x)});
+ const ld=d.labourDetails&&typeof d.labourDetails==='object'?d.labourDetails:{};
+ out.labours.forEach(n=>{const x=ld[n]||{};out.labourDetails[n]={name:n,address:String(x.address||''),phone:String(x.phone||'')}});
+ const ps=new Set();
+ (Array.isArray(d.products)?d.products:[]).forEach(p=>{
+  if(!p||typeof p.name!=='string')return;const n=p.name.trim();if(!n||ps.has(n.toLowerCase()))return;ps.add(n.toLowerCase());
+  const lc=num(p.labourCost??p.rate);
+  out.products.push({name:n,bom:String(p.bom||''),avgPrice:num(p.avgPrice),labourCost:lc,rate:lc,length:String(p.length||''),width:String(p.width||''),height:String(p.height||'')});
+ });
+ const cur={};out.products.forEach(p=>cur[p.name]=p.labourCost);
+ const days=d.days&&typeof d.days==='object'?d.days:{};
+ Object.keys(days).forEach(k=>{
+  const x=days[k];if(!DATE_RE.test(k)||!x||typeof x!=='object')return;
+  const rows=(Array.isArray(x.rows)?x.rows:[]).map(r=>({labour:String(r?.labour||''),product:String(r?.product||''),qty:r?.product?Math.max(0,num(r?.qty)):0})).filter(r=>r.labour||r.product||r.qty);
+  const rates={};
+  rows.forEach(r=>{if(r.product){const sv=x.rates?x.rates[r.product]:undefined;rates[r.product]=sv!=null?num(sv):(cur[r.product]||0)}});
+  const s=summarize(rows,rates),opening=num(x.opening),used=num(x.used),purchase=num(x.purchase);
+  out.days[k]={rows,opening,used,purchase,closing:opening-used+purchase,rates,total:s.total,labourCount:s.count,perLabour:s.per};
+ });
+ ['accounts','items','tx'].forEach(k=>out[k]=Array.isArray(d[k])?d[k]:[]);out.updatedAt=num(d.updatedAt);chain(out);return out;
+}
+function loadDB(){try{return normalize(JSON.parse(localStorage.getItem(KEY)))}catch(e){return normalize({})}}
+let db=loadDB();
+function persist(){try{db.updatedAt=Date.now();localStorage.setItem(KEY,JSON.stringify(db));if(window.extSync)extSync();return true}catch(e){alert('Browser-இல் சேமிக்க முடியவில்லை! உடனே "Export Data (JSON)" மூலம் backup எடுக்கவும்.');return false}}
+
+const now=new Date(),local=new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+$('today').textContent=now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});$('date').value=local;
+function toggleLabour(){openMenuModal('Daily Entry')}
+
+/* ---------- Daily register ---------- */
+let daySnap={};
+const curRate=p=>{const x=db.products.find(y=>y.name===p);return x?num(x.labourCost??x.rate):0};
+const rateFor=p=>daySnap[p]!==undefined?num(daySnap[p]):curRate(p);
+const selVal=s=>s.value==='__new__'?'':s.value;
+function optsLab(v){const L=[...db.labours];if(v&&v!=='__new__'&&!L.includes(v))L.push(v);return '<option value="">Select Labour</option>'+L.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')+'<option value="__new__">+ Create New Labour</option>'}
+function optsProd(v){const P=db.products.map(x=>x.name);if(v&&v!=='__new__'&&!P.includes(v))P.push(v);return '<option value="">Select Product</option>'+P.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')+'<option value="__new__">+ Create New Product</option>'}
+function formRows(){return [...document.querySelectorAll('#rows tr')].map(tr=>{const product=selVal(tr.querySelector('.prod'));return{tr,labour:selVal(tr.querySelector('.lab')),product,qty:product?num(tr.querySelector('.qty').value):0}})}
+function ensureTrailingRow(){const last=$('rows').lastElementChild;if(!last||selVal(last.querySelector('.lab'))||selVal(last.querySelector('.prod')))addRow()}
+function syncQty(tr){const q=tr.querySelector('.qty'),has=!!selVal(tr.querySelector('.prod'));q.disabled=!has;if(!has)q.value=''}
+function addRow(r){
+ r=(r&&typeof r==='object'&&!(r instanceof Event))?r:{};
+ const tr=document.createElement('tr'),i=$('rows').children.length+1;
+ tr.innerHTML=`<td>${i}</td><td><select class="lab">${optsLab(r.labour)}</select></td><td><select class="prod">${optsProd(r.product)}</select></td><td><input class="qty" type="number" min="0" step="1" placeholder="Qty" ${r.product?'':'disabled'} value="${r.product&&r.qty?num(r.qty):''}"></td><td class="wage">—</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
+ $('rows').appendChild(tr);
+ const lab=tr.querySelector('.lab'),prod=tr.querySelector('.prod'),qty=tr.querySelector('.qty');
+ lab.value=r.labour||'';prod.value=r.product||'';
+ lab.onchange=function(){if(this.value==='__new__')newLabour(this);calcAllWages();ensureTrailingRow()};
+ prod.onchange=function(){if(this.value==='__new__')newProduct(this);syncQty(tr);calcAllWages();ensureTrailingRow()};
+ qty.addEventListener('input',calcAllWages);
+ calcAllWages();
+}
+function newLabour(sel){
+ if(sel)sel.value='';
+ restoreLabourPanel();
+ activeMenuName='Daily Entry';
+ editingLabourName=null;
+ showSubpage('b. Labour Master (Create / Edit / Delete)','👷',`<div class="subpage-content"><h3>Labour Master</h3><div class="formline"><label>Labour Name<input id="masterLabourName" placeholder="Enter labour name"></label><label>Address<input id="masterLabourAddress" placeholder="Address"></label><label>Phone Number<input id="masterLabourPhone" type="tel" placeholder="Phone"></label><button class="btn" id="saveLabourBtn" onclick="saveLabourMaster()">Save Labour</button><button class="btn light" id="cancelLabourEdit" style="display:none" onclick="cancelLabourEdit()">Cancel</button></div><h3 style="margin-top:18px">Saved Labour Names</h3><div id="labourMasterList"></div></div>`);
+ renderLabourMasterList();
+ say('புதிய Labour உருவாக்க Labour Master திறக்கப்பட்டது');
+}
+function newProduct(sel){
+ if(sel)sel.value='';
+ restoreLabourPanel();
+ activeMenuName='Daily Entry';
+ editingProductName=null;
+ showSubpage('c. Product & Wage Master','🧱',`<div class="subpage-content"><h3>Product & Wage Master</h3><div class="formline"><label>Product Name<input id="masterProductName" placeholder="Enter product name"></label><label>BOM / Raw Materials<input id="masterProductBOM" placeholder="BOM details"></label><label>Average Selling Price (₹)<input id="masterProductPrice" type="number" min="0" step=".01" value="0"></label><label>Labour Cost / Product (₹)<input id="masterProductRate" type="number" min="0" step=".01" value="0"></label><label>Length<input id="masterProductLength" placeholder="12"></label><label>Width<input id="masterProductWidth" placeholder="5"></label><label>Height<input id="masterProductHeight" placeholder="6"></label><button class="btn" id="saveProductBtn" onclick="saveProductMaster()">Save Product</button><button class="btn light" id="cancelProductEdit" style="display:none" onclick="cancelProductEdit()">Cancel</button></div><h3 style="margin-top:18px">Saved Products & Rates</h3><div id="productMasterList"></div></div>`);
+ renderProductMasterList();
+ say('புதிய Product உருவாக்க Product & Wage Master திறக்கப்பட்டது');
+}
+function refresh(){
+ document.querySelectorAll('.lab').forEach(s=>{const v=s.value;s.innerHTML=optsLab(v);s.value=v});
+ document.querySelectorAll('.prod').forEach(s=>{const v=s.value;s.innerHTML=optsProd(v);s.value=v});
+}
+function calcAllWages(){
+ const fr=formRows(),rates={};
+ fr.forEach(r=>{if(r.product)rates[r.product]=rateFor(r.product)});
+ const s=summarize(fr,rates),seen=new Set();let q=0,dup=false;
+ fr.forEach(r=>{
+  const c=r.tr.querySelector('.wage');q+=r.qty;
+  if(!r.labour){c.textContent='—';c.className='wage'}
+  else if(seen.has(r.labour)){c.textContent='⚠ Duplicate';c.className='wage bad';dup=true}
+  else{seen.add(r.labour);c.textContent=fmt(s.per);c.className='wage'}
+ });
+ $('tqty').textContent=q;$('twage').textContent=fmt(s.total);
+ const names=Object.keys(s.prod);let h='';
+ if(names.length)h+='<div class="table-wrap"><table class="tbl mini"><tr><th>Product</th><th>Quantity</th><th>Rate / Unit</th><th>Amount</th></tr>'+names.map(n=>{const o=s.prod[n];return `<tr><td>${esc(n)}</td><td>${o.qty}</td><td>${fmt(o.rate)}</td><td>${fmt(o.amt)}</td></tr>`}).join('')+`<tr class="sum"><td colspan="3">மொத்தக் கூலி</td><td>${fmt(s.total)}</td></tr></table></div>`;
+ else h+='<p class="hint">Product தேர்வு செய்து Quantity உள்ளிடவும்.</p>';
+ h+=`<div class="sumline">வேலை செய்த Labour: <b>${s.count}</b> &nbsp;|&nbsp; ஒவ்வொரு Labour-க்கும் Wage: <b>${fmt(s.per)}</b></div>`;
+ if(s.total>0&&s.count===0)h+='<div class="warn">⚠ கூலி வழங்க Labour பெயர்களைத் தேர்வு செய்யவும்.</div>';
+ if(dup)h+='<div class="warn">⚠ ஒரே Labour பெயர் ஒன்றுக்கு மேற்பட்ட வரிகளில் உள்ளது. ஒரு பெயரை ஒரு முறை மட்டுமே தேர்வு செய்யவும்.</div>';
+ $('summary').innerHTML=h;
+}
+function prevClose(date){const ds=Object.keys(db.days).filter(x=>x<date).sort();return ds.length?db.days[ds.at(-1)].closing:null}
+function calc(){const c=num($('opening').value)-num($('used').value)+num($('purchase').value);$('closing').value=c.toFixed(2)}
+function onPurchaseInput(){calc();const p=num($('purchase').value);if(p>0)$('status').textContent='Cement Purchase (C) உள்ளிடப்பட்டது – Save செய்யும்போது இந்த அளவு Purchase-ஆக பதிவாகும்.'}
+function loadDate(){
+ const date=$('date').value;if(!date)return;
+ const d=db.days[date],pc=prevClose(date);
+ daySnap=d?{...d.rates}:{};
+ $('rows').innerHTML='';(d?.rows?.length?d.rows:[{},{},{},{}]).forEach(r=>addRow(r));
+ ensureTrailingRow();
+ // Opening எப்போதும் தானாக: முந்தைய நாள் Closing அல்லது 0 (manual entry இல்லை)
+ $('opening').value=pc!==null?pc:(d?d.opening:0);
+ $('used').value=d?.used??0;$('purchase').value=d?.purchase??0;
+ calc();calcAllWages();
+ if(d)$('status').textContent='Saved entry loaded: '+date;
+ else if(pc!==null)$('status').textContent='New entry. Opening = முந்தைய Closing ('+pc+'). Used (B) & Purchase (C) மட்டும் உள்ளிடவும்.';
+ else $('status').textContent='New entry (முதல் பதிவு). Opening = 0. Used (B) & Purchase (C) உள்ளிடவும்.';
+}
+function save(){
+ const date=$('date').value;if(!date)return alert('Date தேர்வு செய்யவும்');
+ const fr=formRows().filter(r=>r.labour||r.product||r.qty),seen=new Set();
+ for(const r of fr){
+  if(r.labour){if(seen.has(r.labour))return alert('Labour "'+r.labour+'" ஒன்றுக்கு மேற்பட்ட முறை தேர்வு செய்யப்பட்டுள்ளார்.');seen.add(r.labour)}
+  if(r.product&&!(r.qty>0))return alert('Product "'+r.product+'" க்கு Quantity (0-ஐ விட அதிகம்) உள்ளிடவும்.');
+ }
+ const rows=fr.map(r=>({labour:r.labour,product:r.product,qty:r.product?r.qty:0})),rates={};
+ rows.forEach(r=>{if(r.product)rates[r.product]=rateFor(r.product)});
+ const s=summarize(rows,rates);
+ if(s.total>0&&s.count===0)return alert('உற்பத்தி பதிவு உள்ளது, ஆனால் Labour தேர்வு செய்யப்படவில்லை.');
+ // Opening எப்போதும் previous closing அல்லது 0 – manual அல்ல
+ const pc=prevClose(date),opening=pc!==null?pc:0,used=num($('used').value),purchase=num($('purchase').value);
+ if(used<0||purchase<0)return alert('Cement Used / Purchase எதிர்மறையாக இருக்கக்கூடாது');
+ const closing=opening-used+purchase;
+ if(closing<0&&!confirm('Cement Closing Balance எதிர்மறை ('+closing.toFixed(2)+') ஆகிறது. அப்படியும் சேமிக்கவா?'))return;
+ db.days[date]={rows,opening,used,purchase,closing,rates,total:s.total,labourCount:s.count,perLabour:s.per};
+ chain(db);if(!persist())return;
+ daySnap=rates;calc();
+ let msg='சேமிக்கப்பட்டது – '+date+' | ஒவ்வொரு Labour: '+fmt(s.per)+' | Closing Cement: '+closing.toFixed(2);
+ if(purchase>0)msg+=' | Cement Purchase: '+purchase+' பதிவானது';
+ say(msg);
+}
+function deleteDay(){
+ const date=$('date').value;
+ if(!db.days[date])return say('இந்த தேதியில் சேமித்த பதிவு இல்லை',1);
+ if(!confirm(date+' தேதியின் பதிவை நிரந்தரமாக நீக்கவா?'))return;
+ delete db.days[date];chain(db);persist();loadDate();say('பதிவு நீக்கப்பட்டது: '+date);
+}
+function clearForm(){
+ if(!confirm('Form-ஐ clear செய்யவா? Saved data அழிக்கப்படாது.'))return;
+ daySnap={};$('rows').innerHTML='';for(let i=0;i<4;i++)addRow();$('used').value=0;$('purchase').value=0;calc();calcAllWages();
+}
+function useLatestRates(){daySnap={};calcAllWages();say('தற்போதைய Product கூலி விகிதங்கள் பயன்படுத்தப்பட்டன. மாற்றத்தைச் சேமிக்க Save செய்யவும்.')}
+function exportDB(){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));a.href=u;a.download='ACW_Labour_Data_'+local+'.json';a.click();URL.revokeObjectURL(u)}
+function importDB(e){
+ const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=()=>{try{
+  const x=JSON.parse(rd.result);
+  if(!x||typeof x!=='object'||!Array.isArray(x.labours)||!Array.isArray(x.products)||!x.days||typeof x.days!=='object')throw 0;
+  if(!confirm('Import செய்தால் தற்போதைய data முழுவதும் மாற்றப்படும். தொடரவா?'))return;
+  db=normalize(x);persist();loadDate();say('Data imported')
+ }catch(_){alert('Invalid JSON file')}finally{e.target.value=''}};
+ rd.readAsText(f);
+}
+
+/* ---------- Menu / modal ---------- */
+const menuSubOptions={
+ 'Daily Entry':[['➕','a. Daily Entry','daily'],['👷','b. Labour Master (Create / Edit / Delete)','labour-master'],['🧱','c. Product & Wage Master','product-master'],['🔎','d. Search & Filter (Date / Labour / Product)','search']],
+ 'Production':[['➕','a. Production Entry','pending'],['📋','b. Production List (Select / Edit / Delete)','pending'],['🔎','c. Search & Filter','pending']],
+ 'Purchase':[['➕','a. Single Item Entry','pending'],['📥','b. Multi Item Entry','pending'],['📂','c. List (Select / Edit / Delete)','pending'],['🔎','d. Search & Filter','pending']],
+ 'Sales':[['➕','a. Single Sales Entry','pending'],['📥','b. Multi Item Entry','pending'],['📂','c. List (Select / Edit / Delete)','pending'],['🔎','d. Search & Filter','pending']],
+ 'Stock / BOM':[['➕','a. Stock Item Entry','pending'],['🧾','b. BOM Setup','pending'],['📂','c. Stock List','pending'],['🔎','d. Search & Filter','pending']],
+ 'Receipt':[['➕','a. New Receipt Entry','pending'],['📂','b. Receipt List (Edit / Delete)','pending'],['🔎','c. Search & Filter','pending']],
+ 'Payment':[['➕','a. New Payment Entry','pending'],['📂','b. Payment List (Edit / Delete)','pending'],['🔎','c. Search & Filter','pending']],
+ 'Bank / Cash':[['➕','a. Cash / Bank Entry','pending'],['📂','b. Account Ledger','pending'],['🔎','c. Search & Filter','pending']],
+ 'Day Book':[['📅','a. Daily Transactions','pending'],['📂','b. Day Book List','pending'],['🔎','c. Search & Filter','pending']],
+ 'Reports':[['📊','a. Daily Report','pending'],['📈','b. Monthly Report','pending'],['📋','c. Labour / Production Report','pending'],['🧾','d. Stock Report','pending']]
+};
+let activeMenuName='',editingLabourName=null,editingProductName=null;
+function restoreLabourPanel(){const panel=$('labourPanel'),home=$('labourPanelHome');if(panel&&home){home.after(panel);panel.classList.remove('open')}}
+function renderMenuOptions(name){
+ restoreLabourPanel();
+ const options=menuSubOptions[name]||[];
+ $('modalTitle').textContent=name;
+ const icons={'Daily Entry':'👷','Production':'🏭','Purchase':'🛒','Sales':'₹','Stock / BOM':'🧱','Receipt':'🪙','Payment':'💳','Bank / Cash':'🏦','Day Book':'📘','Reports':'📊'};
+ $('modalIcon').textContent=icons[name]||'📋';
+ $('modalOptions').className='modal-options';
+ $('modalOptions').innerHTML=options.map((o,i)=>`<button class="modal-option" onclick="chooseMenuOption('${name}',${i})">${o[0]} ${esc(o[1])}</button>`).join('');
+ $('modalCard').classList.remove('wide');
+}
+function openMenuModal(name){activeMenuName=name;renderMenuOptions(name);$('menuModal').classList.add('show');$('menuModal').setAttribute('aria-hidden','false')}
+function closeMenuModal(){restoreLabourPanel();$('modalCard').classList.remove('wide');$('menuModal').classList.remove('show');$('menuModal').setAttribute('aria-hidden','true')}
+function backdropClose(e){if(e.target===$('menuModal'))closeMenuModal()}
+function showSubpage(name,icon,html,wide=false){
+ $('modalTitle').textContent=name;$('modalIcon').textContent=icon||'📋';
+ $('modalCard').classList.toggle('wide',wide);
+ $('modalOptions').className='modal-options subpage';
+ $('modalOptions').innerHTML=`<button class="btn light modal-back" onclick="renderMenuOptions(activeMenuName)">← Back to ${esc(activeMenuName)}</button>${html}`;
+}
+function chooseMenuOption(name,i){
+ const o=menuSubOptions[name][i];editingLabourName=null;editingProductName=null;
+ if(name==='Daily Entry'&&o[2]==='daily'){
+  const panel=$('labourPanel');$('modalOptions').className='modal-options subpage';
+  $('modalTitle').textContent=o[1];$('modalIcon').textContent=o[0];$('modalCard').classList.add('wide');
+  $('modalOptions').innerHTML='<button class="btn light modal-back" onclick="renderMenuOptions(activeMenuName)">← Back to Daily Entry</button><div id="labourModalHost"></div>';
+  $('labourModalHost').appendChild(panel);panel.classList.add('open');loadDate();return;
+ }
+ if(name==='Daily Entry'&&o[2]==='labour-master'){
+  showSubpage(o[1],o[0],`<div class="subpage-content"><h3>Labour Master</h3><div class="formline"><label>Labour Name<input id="masterLabourName" placeholder="Enter labour name"></label><label>Address<input id="masterLabourAddress" placeholder="Address"></label><label>Phone Number<input id="masterLabourPhone" type="tel" placeholder="Phone"></label><button class="btn" id="saveLabourBtn" onclick="saveLabourMaster()">Save Labour</button><button class="btn light" id="cancelLabourEdit" style="display:none" onclick="cancelLabourEdit()">Cancel</button></div><h3 style="margin-top:18px">Saved Labour Names</h3><div id="labourMasterList"></div></div>`);renderLabourMasterList();return;
+ }
+ if(name==='Daily Entry'&&o[2]==='product-master'){
+  showSubpage(o[1],o[0],`<div class="subpage-content"><h3>Product & Wage Master</h3><div class="formline"><label>Product Name<input id="masterProductName" placeholder="Enter product name"></label><label>BOM / Raw Materials<input id="masterProductBOM" placeholder="BOM details"></label><label>Average Selling Price (₹)<input id="masterProductPrice" type="number" min="0" step=".01" value="0"></label><label>Labour Cost / Product (₹)<input id="masterProductRate" type="number" min="0" step=".01" value="0"></label><label>Length<input id="masterProductLength" placeholder="12"></label><label>Width<input id="masterProductWidth" placeholder="5"></label><label>Height<input id="masterProductHeight" placeholder="6"></label><button class="btn" id="saveProductBtn" onclick="saveProductMaster()">Save Product</button><button class="btn light" id="cancelProductEdit" style="display:none" onclick="cancelProductEdit()">Cancel</button></div><h3 style="margin-top:18px">Saved Products & Rates</h3><div id="productMasterList"></div></div>`);renderProductMasterList();return;
+ }
+ if(name==='Daily Entry'&&o[2]==='search'){
+  const names=new Set(db.labours),prods=new Set(db.products.map(p=>p.name));
+  Object.values(db.days).forEach(d=>d.rows.forEach(r=>{if(r.labour)names.add(r.labour);if(r.product)prods.add(r.product)}));
+  const opt=(set,all)=>`<option value="">${all}</option>`+[...set].sort().map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  showSubpage(o[1],o[0],`<div class="subpage-content"><h3>Search Labour Entries</h3><div class="formline"><label>Labour<select id="sLabour">${opt(names,'All Labour')}</select></label><label>Product<select id="sProduct">${opt(prods,'All Products')}</select></label><label>From Date<input id="sFrom" type="date"></label><label>To Date<input id="sTo" type="date"></label><button class="btn" onclick="runLabourSearch()">Search</button><button class="btn light" onclick="clearLabourSearch()">Clear</button></div><div id="labourSearchResults" style="margin-top:14px"></div></div>`,true);runLabourSearch();return;
+ }
+ showSubpage(o[1],o[0],`<div class="subpage-content"><h3>${esc(o[1])}</h3><p>இந்தப் பகுதியின் Entry Form, List, Edit / Delete மற்றும் Search வசதிகள் இதே மைய Popup Window-க்குள் திறக்கும் வகையில் அமைக்கப்படும்.</p><p class="hint">இந்த Sub Menu-வின் உள்ளக செயல்பாடுகள் அடுத்த கட்டத்தில் சேர்க்கப்படும்.</p></div>`);
+}
+
+/* ---------- Labour master ---------- */
+function resetLabourForm(){editingLabourName=null;$('masterLabourName').value='';$('masterLabourAddress').value='';$('masterLabourPhone').value='';$('saveLabourBtn').textContent='Save Labour';$('cancelLabourEdit').style.display='none'}
+function saveLabourMaster(){
+ const n=$('masterLabourName').value.trim(),address=$('masterLabourAddress').value.trim(),phone=$('masterLabourPhone').value.trim();
+ if(!n)return say('Labour பெயரை உள்ளிடவும்',1);
+ if(phone&&!/^[0-9+\-\s]{6,15}$/.test(phone))return say('Phone Number சரியாக உள்ளிடவும்',1);
+ const old=editingLabourName;
+ if(db.labours.some(x=>x!==old&&x.toLowerCase()===n.toLowerCase()))return say('இந்த Labour பெயர் ஏற்கனவே உள்ளது',1);
+ if(old){
+  const idx=db.labours.indexOf(old);if(idx>=0)db.labours[idx]=n;
+  delete db.labourDetails[old];
+  Object.values(db.days).forEach(d=>d.rows.forEach(r=>{if(r.labour===old)r.labour=n}));
+ }else db.labours.push(n);
+ db.labourDetails[n]={name:n,address,phone};
+ resetLabourForm();persist();renderLabourMasterList();refresh();say((old?'Labour updated: ':'Labour saved: ')+n);
+}
+function editLabour(i){
+ const n=db.labours[i],d=db.labourDetails[n]||{};
+ editingLabourName=n;$('masterLabourName').value=n;$('masterLabourAddress').value=d.address||'';$('masterLabourPhone').value=d.phone||'';
+ $('saveLabourBtn').textContent='Update Labour';$('cancelLabourEdit').style.display='inline-block';$('masterLabourName').focus();
+}
+function cancelLabourEdit(){resetLabourForm()}
+function deleteLabour(i){
+ const n=db.labours[i];
+ const used=Object.values(db.days).filter(d=>d.rows.some(r=>r.labour===n)).length;
+ if(!confirm('Labour "'+n+'" ஐ நீக்கவா?'+(used?'\n('+used+' நாள் பதிவுகளில் இவர் பெயர் உள்ளது; பழைய பதிவுகள் அப்படியே இருக்கும்.)':'')))return;
+ db.labours.splice(i,1);delete db.labourDetails[n];
+ if(editingLabourName===n)resetLabourForm();
+ persist();renderLabourMasterList();refresh();calcAllWages();say('Labour நீக்கப்பட்டது: '+n);
+}
+function renderLabourMasterList(){
+ $('labourMasterList').innerHTML=db.labours.length?'<div class="table-wrap"><table class="tbl"><tr><th>Labour</th><th>Address</th><th>Phone</th><th>Action</th></tr>'+db.labours.map((n,i)=>{const d=db.labourDetails[n]||{};return `<tr><td>${esc(n)}</td><td>${esc(d.address||'')}</td><td>${esc(d.phone||'')}</td><td><button class="btn small" onclick="editLabour(${i})">✏️ Edit</button> <button class="btn small danger" onclick="deleteLabour(${i})">🗑 Delete</button></td></tr>`}).join('')+'</table></div>':'<p class="hint">No labour names saved.</p>';
+}
+
+/* ---------- Product master ---------- */
+const PF=['masterProductName','masterProductBOM','masterProductLength','masterProductWidth','masterProductHeight'];
+function resetProductForm(){editingProductName=null;PF.forEach(id=>$(id).value='');$('masterProductRate').value='0';$('masterProductPrice').value='0';$('saveProductBtn').textContent='Save Product';$('cancelProductEdit').style.display='none'}
+function saveProductMaster(){
+ const n=$('masterProductName').value.trim(),r=Number($('masterProductRate').value),price=Number($('masterProductPrice').value);
+ if(!n||!Number.isFinite(r)||r<0||!Number.isFinite(price)||price<0)return say('Product பெயர், விலை, கூலி சரியாக உள்ளிடவும்',1);
+ const old=editingProductName;
+ if(db.products.some(x=>x.name!==old&&x.name.toLowerCase()===n.toLowerCase()))return say('இந்த Product பெயர் ஏற்கனவே உள்ளது',1);
+ const product={name:n,bom:$('masterProductBOM').value.trim(),avgPrice:price,labourCost:r,rate:r,length:$('masterProductLength').value.trim(),width:$('masterProductWidth').value.trim(),height:$('masterProductHeight').value.trim()};
+ if(old){
+  const p=db.products.find(x=>x.name===old);if(p)Object.assign(p,product);else db.products.push(product);
+  if(old!==n)Object.values(db.days).forEach(d=>{d.rows.forEach(row=>{if(row.product===old)row.product=n});if(d.rates&&old in d.rates){d.rates[n]=d.rates[old];delete d.rates[old]}});
+ }else db.products.push(product);
+ resetProductForm();persist();renderProductMasterList();refresh();calcAllWages();say((old?'Product updated: ':'Product saved: ')+n+' (புதிய கூலி இனி புதிய பதிவுகளுக்கு மட்டும் பொருந்தும்)');
+}
+function editProduct(i){
+ const p=db.products[i];editingProductName=p.name;
+ $('masterProductName').value=p.name;$('masterProductBOM').value=p.bom||'';
+ $('masterProductPrice').value=num(p.avgPrice);$('masterProductRate').value=num(p.labourCost??p.rate);
+ $('masterProductLength').value=p.length||'';$('masterProductWidth').value=p.width||'';$('masterProductHeight').value=p.height||'';
+ $('saveProductBtn').textContent='Update Product';$('cancelProductEdit').style.display='inline-block';$('masterProductName').focus();
+}
+function cancelProductEdit(){resetProductForm()}
+function deleteProduct(i){
+ const n=db.products[i].name;
+ const used=Object.values(db.days).filter(d=>d.rows.some(r=>r.product===n)).length;
+ if(!confirm('Product "'+n+'" ஐ நீக்கவா?'+(used?'\n('+used+' நாள் பதிவுகளில் இது உள்ளது; பழைய பதிவுகள் அப்படியே இருக்கும்.)':'')))return;
+ db.products.splice(i,1);if(editingProductName===n)resetProductForm();
+ persist();renderProductMasterList();refresh();calcAllWages();say('Product நீக்கப்பட்டது: '+n);
+}
+function renderProductMasterList(){
+ $('productMasterList').innerHTML=db.products.length?'<div class="table-wrap"><table class="tbl"><tr><th>Product</th><th>BOM</th><th>Avg. Selling Price</th><th>Labour Cost</th><th>Size (L×W×H)</th><th>Action</th></tr>'+db.products.map((p,i)=>`<tr><td>${esc(p.name)}</td><td>${esc(p.bom||'')}</td><td>${fmt(p.avgPrice)}</td><td>${fmt(p.labourCost??p.rate)}</td><td>${esc([p.length,p.width,p.height].filter(Boolean).join('×'))}</td><td><button class="btn small" onclick="editProduct(${i})">✏️ Edit</button> <button class="btn small danger" onclick="deleteProduct(${i})">🗑 Delete</button></td></tr>`).join('')+'</table></div>':'<p class="hint">No products saved.</p>';
+}
+
+/* ---------- Search ---------- */
+function clearLabourSearch(){['sLabour','sProduct','sFrom','sTo'].forEach(id=>$(id).value='');runLabourSearch()}
+function runLabourSearch(){
+ const L=$('sLabour').value,P=$('sProduct').value,f=$('sFrom').value,t=$('sTo').value,hits=[],labDays=new Set();let wageSum=0;
+ Object.keys(db.days).sort().forEach(date=>{
+  if((f&&date<f)||(t&&date>t))return;const d=db.days[date];
+  d.rows.forEach(r=>{
+   if(L&&r.labour!==L)return;if(P&&r.product!==P)return;
+   hits.push({date,r,per:r.labour?d.perLabour:null});
+   if(L&&!labDays.has(date)){labDays.add(date);wageSum+=num(d.perLabour)}
+  });
+ });
+ $('labourSearchResults').innerHTML=hits.length?(L?`<div class="sumline">${esc(L)} – மொத்த நாட்கள்: <b>${labDays.size}</b> | மொத்த Wage: <b>${fmt(wageSum)}</b></div><br>`:'')+'<div class="table-wrap"><table class="tbl"><tr><th>Date</th><th>Labour</th><th>Product</th><th>Qty</th><th>Wage / Labour (அன்று)</th></tr>'+hits.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.r.labour||'—')}</td><td>${esc(x.r.product||'—')}</td><td>${x.r.product?x.r.qty:'—'}</td><td>${x.per===null?'—':fmt(x.per)}</td></tr>`).join('')+'</table></div>':'<p class="hint">பதிவுகள் கிடைக்கவில்லை.</p>';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenuModal()});
+loadDate();
+</script>
+<script>
+/* ===== ACW v3 Add-on: Masters, Transactions, Reports, External Database ===== */
+(function(){
+const M=menuSubOptions,U=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5),td=()=>local,g=id=>$(id).value;
+const GR=['Customer','Supplier','Cash','Bank','Expense','Income','Capital','Other'],UN=['Nos','Bag','Kg','Ton','Cft','Ltr','Box'],CAT=['Raw Material','Finished Goods','Other'];
+const TN={production:'Production',purchase:'Purchase',sales:'Sales',receipt:'Receipt',payment:'Payment',cashbank:'Cash / Bank'};
+const IC={production:'🏭',purchase:'🛒',sales:'₹',receipt:'🪙',payment:'💳',cashbank:'🏦'};
+const A=id=>db.accounts.find(a=>a.id===id),an=id=>A(id)?A(id).name:'—',isCB=a=>a.group==='Cash'||a.group==='Bank';
+const op=(arr,sel,ph)=>(ph!==undefined?`<option value="">${ph}</option>`:'')+arr.map(x=>{const[k,l]=Array.isArray(x)?x:[x,x];return `<option value="${esc(k)}"${k===sel?' selected':''}>${esc(l)}</option>`}).join('');
+const accO=(f,sel,ph)=>op(db.accounts.filter(f||(()=>1)).sort((a,b)=>a.name.localeCompare(b.name)).map(a=>[a.id,a.name+' ('+a.group+')']),sel,ph);
+const itemNames=()=>[...new Set([...db.items.map(i=>i.name),...db.products.map(p=>p.name)])].sort();
+const fl=(l,h)=>`<label>${l}${h}</label>`,P=(n,i,h,w)=>showSubpage(n,i,`<div class="subpage-content">${h}</div>`,w);
+const rw=c=>'<tr>'+c.map(x=>`<td>${x}</td>`).join('')+'</tr>';
+const tbl=(h,rows)=>rows.length?`<div class="table-wrap"><table class="tbl"><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${rows.join('')}</table></div>`:'<p class="hint">பதிவுகள் இல்லை.</p>';
+const m2=n=>num(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),bs=b=>m2(Math.abs(b))+(b>=0?' Dr':' Cr');
+let cur=null,eA=null,eI=null,eT=null,eV=null,sg=0,vt='purchase';
+
+/* ---- journal / ledger / stock engine ---- */
+function jl(t){const d=t.type,o=[];
+ if(d==='purchase'||d==='sales'){const p=d==='purchase',n=TN[d]+' '+(t.inv||'');o.push([t.acc,p?0:t.total,p?t.total:0,n]);
+  if(t.paid>0&&t.payAcc){o.push([t.acc,p?t.paid:0,p?0:t.paid,'Paid / Received']);o.push([t.payAcc,p?0:t.paid,p?t.paid:0,n+' – '+an(t.acc)])}}
+ else if(d==='receipt'){o.push([t.acc,0,t.amt,'Receipt '+(t.ref||'')+' '+(t.remarks||'')]);o.push([t.bank,t.amt,0,'Receipt from '+an(t.acc)])}
+ else if(d==='payment'){o.push([t.acc,t.amt,0,'Payment '+(t.ref||'')+' '+(t.remarks||'')]);o.push([t.bank,0,t.amt,'Payment to '+an(t.acc)])}
+ else if(d==='cashbank'){const i=t.kind==='In';o.push([t.bank,i?t.amt:0,i?0:t.amt,'Cash/Bank '+t.kind+' '+(t.remarks||'')]);if(t.acc)o.push([t.acc,i?0:t.amt,i?t.amt:0,'Cash/Bank '+t.kind+' '+(t.remarks||'')])}
+ return o}
+const lines=()=>{const L=[];db.tx.forEach(t=>jl(t).forEach(l=>L.push({t,a:l[0],dr:num(l[1]),cr:num(l[2]),d:l[3]})));return L};
+function balMap(){const m={};db.accounts.forEach(a=>m[a.id]=(a.side==='Cr'?-1:1)*num(a.opening));lines().forEach(l=>m[l.a]=(m[l.a]||0)+l.dr-l.cr);return m}
+function stk(){const m={},q=n=>m[n]||(m[n]={o:0,p:0,r:0,s:0});db.items.forEach(i=>q(i.name).o=num(i.opening));db.products.forEach(p=>q(p.name));
+ db.tx.forEach(t=>{if(t.type==='production')q(t.item).r+=num(t.qty);else if(t.type==='purchase')t.items.forEach(r=>q(r.item).p+=num(r.qty));else if(t.type==='sales')t.items.forEach(r=>q(r.item).s+=num(r.qty))});
+ Object.values(m).forEach(x=>x.c=x.o+x.p+x.r-x.s);return m}
+const used=id=>lines().some(l=>l.a===id);
+
+/* ---- Account master ---- */
+function accScr(){eA=null;P('Account Master','📒',`<h3>Account Master</h3><div class="formline">${fl('Account Name','<input id="aN">')}${fl('Group',`<select id="aG">${op(GR)}</select>`)}${fl('Phone','<input id="aP" type="tel">')}${fl('Address','<input id="aA">')}${fl('Opening Balance (₹)','<input id="aO" type="number" step=".01" min="0" value="0">')}${fl('Dr / Cr','<select id="aS"><option>Dr</option><option>Cr</option></select>')}<button class="btn" id="aB" onclick="X.accSave()">Save Account</button><button class="btn light" id="aC" style="display:none" onclick="X.accScr()">Cancel</button></div><h3 style="margin-top:18px">Accounts</h3><div class="formline">${fl('Search','<input id="aQ" oninput="X.accList()" placeholder="Name / Phone">')}${fl('Group',`<select id="aF" onchange="X.accList()">${op(GR,'','All Groups')}</select>`)}</div><div id="aL" style="margin-top:10px"></div>`,true);accList()}
+function accList(){const q=g('aQ').toLowerCase(),f=g('aF'),b=balMap();
+ $('aL').innerHTML=tbl(['Account','Group','Phone','Address','Balance','Action'],db.accounts.filter(a=>(!f||a.group===f)&&(!q||(a.name+a.phone).toLowerCase().includes(q))).sort((x,y)=>x.name.localeCompare(y.name)).map(a=>rw([esc(a.name),a.group,esc(a.phone||''),esc(a.address||''),bs(b[a.id]||0),`<button class="btn small" onclick="X.accEdit('${a.id}')">✏️ Edit</button> <button class="btn small danger" onclick="X.accDel('${a.id}')">🗑 Delete</button>`])))}
+function accSave(){const n=g('aN').trim(),ph=g('aP').trim();if(!n)return say('Account பெயரை உள்ளிடவும்',1);
+ if(ph&&!/^[0-9+\-\s]{6,15}$/.test(ph))return say('Phone Number சரியாக உள்ளிடவும்',1);
+ if(db.accounts.some(a=>a.id!==eA&&a.name.toLowerCase()===n.toLowerCase()))return say('இந்த Account ஏற்கனவே உள்ளது',1);
+ const o={id:eA||U(),name:n,group:g('aG'),phone:ph,address:g('aA').trim(),opening:Math.max(0,num(g('aO'))),side:g('aS')};
+ if(eA)db.accounts[db.accounts.findIndex(a=>a.id===eA)]=o;else db.accounts.push(o);
+ persist();accScr();say('Account சேமிக்கப்பட்டது: '+n)}
+function accEdit(id){const a=A(id);eA=id;$('aN').value=a.name;$('aG').value=a.group;$('aP').value=a.phone||'';$('aA').value=a.address||'';$('aO').value=a.opening;$('aS').value=a.side||'Dr';$('aB').textContent='Update Account';$('aC').style.display='inline-block';$('aN').focus()}
+function accDel(id){if(used(id))return say('இந்த Account-இல் பரிவர்த்தனைகள் உள்ளன – நீக்க முடியாது',1);if(!confirm('Account "'+an(id)+'" ஐ நீக்கவா?'))return;db.accounts=db.accounts.filter(a=>a.id!==id);persist();accList();say('Account நீக்கப்பட்டது')}
+
+/* ---- Item master ---- */
+function itemScr(){eI=null;P('Item Master','📦',`<h3>Item Master</h3><div class="formline">${fl('Item Name','<input id="iN">')}${fl('Unit',`<select id="iU">${op(UN)}</select>`)}${fl('Category',`<select id="iC">${op(CAT)}</select>`)}${fl('Purchase Rate (₹)','<input id="iP" type="number" min="0" step=".01" value="0">')}${fl('Sales Rate (₹)','<input id="iS" type="number" min="0" step=".01" value="0">')}${fl('Opening Qty','<input id="iO" type="number" step=".01" value="0">')}${fl('HSN Code','<input id="iH">')}<button class="btn" id="iB" onclick="X.itemSave()">Save Item</button><button class="btn light" id="iX" style="display:none" onclick="X.itemScr()">Cancel</button></div><h3 style="margin-top:18px">Items</h3><div class="formline">${fl('Search','<input id="iQ" oninput="X.itemList()">')}${fl('Category',`<select id="iF" onchange="X.itemList()">${op(CAT,'','All')}</select>`)}</div><div id="iL" style="margin-top:10px"></div>`,true);itemList()}
+function itemList(){const q=g('iQ').toLowerCase(),f=g('iF'),s=stk();
+ $('iL').innerHTML=tbl(['Item','Unit','Category','Purchase ₹','Sales ₹','Opening','Current Qty','HSN','Action'],db.items.filter(i=>(!f||i.category===f)&&(!q||i.name.toLowerCase().includes(q))).sort((x,y)=>x.name.localeCompare(y.name)).map(i=>rw([esc(i.name),i.unit,i.category,m2(i.purchaseRate),m2(i.saleRate),i.opening,(s[i.name]||{c:0}).c,esc(i.hsn||''),`<button class="btn small" onclick="X.itemEdit('${i.id}')">✏️ Edit</button> <button class="btn small danger" onclick="X.itemDel('${i.id}')">🗑 Delete</button>`])))}
+function itemSave(){const n=g('iN').trim();if(!n)return say('Item பெயரை உள்ளிடவும்',1);
+ if(db.items.some(i=>i.id!==eI&&i.name.toLowerCase()===n.toLowerCase()))return say('இந்த Item ஏற்கனவே உள்ளது',1);
+ const o={id:eI||U(),name:n,unit:g('iU'),category:g('iC'),purchaseRate:Math.max(0,num(g('iP'))),saleRate:Math.max(0,num(g('iS'))),opening:num(g('iO')),hsn:g('iH').trim()};
+ if(eI){const k=db.items.findIndex(i=>i.id===eI),old=db.items[k].name;db.items[k]=o;if(old!==n)db.tx.forEach(t=>{if(t.item===old)t.item=n;(t.items||[]).forEach(r=>{if(r.item===old)r.item=n})})}else db.items.push(o);
+ persist();itemScr();say('Item சேமிக்கப்பட்டது: '+n)}
+function itemEdit(id){const i=db.items.find(x=>x.id===id);eI=id;$('iN').value=i.name;$('iU').value=i.unit;$('iC').value=i.category;$('iP').value=i.purchaseRate;$('iS').value=i.saleRate;$('iO').value=i.opening;$('iH').value=i.hsn||'';$('iB').textContent='Update Item';$('iX').style.display='inline-block';$('iN').focus()}
+function itemDel(id){const i=db.items.find(x=>x.id===id);if(db.tx.some(t=>t.item===i.name||(t.items||[]).some(r=>r.item===i.name)))return say('இந்த Item பரிவர்த்தனைகளில் உள்ளது – நீக்க முடியாது',1);if(!confirm('Item "'+i.name+'" ஐ நீக்கவா?'))return;db.items=db.items.filter(x=>x.id!==id);persist();itemList();say('Item நீக்கப்பட்டது')}
+
+/* ---- Simple forms: production / receipt / payment / cash-bank ---- */
+const FD={production:[['date','Date','date'],['item','Item / Product','item'],['qty','Quantity','num'],['remarks','Remarks','text']],
+ receipt:[['date','Date','date'],['acc','Received From','acc'],['bank','Received In (Cash / Bank)','bank'],['amt','Amount (₹)','num'],['ref','Ref / Cheque No','text'],['remarks','Narration','text']],
+ payment:[['date','Date','date'],['acc','Paid To','acc'],['bank','Paid From (Cash / Bank)','bank'],['amt','Amount (₹)','num'],['ref','Ref / Cheque No','text'],['remarks','Narration','text']],
+ cashbank:[['date','Date','date'],['bank','Cash / Bank Account','bank'],['kind','Type (In / Out)','kind'],['acc','Other Account (optional)','acc0'],['amt','Amount (₹)','num'],['remarks','Narration','text']]};
+function inp(k,t,v){const id='f_'+k;
+ if(t==='date')return `<input id="${id}" type="date" value="${v||td()}">`;
+ if(t==='num')return `<input id="${id}" type="number" min="0" step=".01" value="${v??''}">`;
+ if(t==='item')return `<select id="${id}">${op(itemNames(),v,'Select Item')}</select>`;
+ if(t==='bank')return `<select id="${id}">${accO(isCB,v,'Select')}</select>`;
+ if(t==='kind')return `<select id="${id}">${op(['In','Out'],v)}</select>`;
+ if(t==='acc'||t==='acc0')return `<select id="${id}">${accO(a=>t==='acc0'||!isCB(a),v,'Select Account')}</select>`;
+ return `<input id="${id}" value="${esc(v||'')}">`}
+function form(t,id){const r=id?db.tx.find(x=>x.id===id):{};eT=id||null;
+ P((id?'Edit ':'New ')+TN[t]+' Entry',IC[t],`<h3>${TN[t]} Entry</h3><div class="formline">${FD[t].map(f=>fl(f[1],inp(f[0],f[2],r[f[0]]))).join('')}</div><div class="actions" style="padding:14px 0 0"><button class="btn" onclick="X.fsave('${t}')">Save</button><button class="btn light" onclick="X.form('${t}')">Clear / New</button><button class="btn light" onclick="X.list('${t}')">📂 View List</button></div>`)}
+function fsave(t){const o={type:t,id:eT||U()};
+ for(const[k,l,ty]of FD[t]){let x=g('f_'+k).trim();if(ty==='num'){x=num(x);if(!(x>0))return say(l+' 0-ஐ விட அதிகமாக இருக்க வேண்டும்',1)}else if(['date','item','acc','bank'].includes(ty)&&!x)return say(l+' தேர்வு செய்யவும்',1);o[k]=x}
+ if(t==='cashbank'&&o.acc===o.bank)return say('இரு Account-உம் ஒன்றாக இருக்கக்கூடாது',1);
+ if(eT)db.tx[db.tx.findIndex(x=>x.id===eT)]=o;else db.tx.push(o);
+ persist();form(t);say(TN[t]+' சேமிக்கப்பட்டது – '+o.date)}
+
+/* ---- Voucher: purchase / sales ---- */
+function vr(r){r=r||{};return `<tr><td><select class="vi" onchange="X.vpick(this)">${op(itemNames(),r.item,'Select Item')}</select></td><td><input class="vq" type="number" min="0" step=".01" value="${r.qty??''}" oninput="X.vc()"></td><td><input class="vp" type="number" min="0" step=".01" value="${r.rate??''}" oninput="X.vc()"></td><td class="va">0.00</td><td>${sg?'':`<button class="btn small danger" onclick="this.closest('tr').remove();X.vc()">✕</button>`}</td></tr>`}
+function voucher(t,single,id){const r=id?db.tx.find(x=>x.id===id):{},p=t==='purchase';eV=id||null;vt=t;sg=id?0:single;
+ P((id?'Edit ':'New ')+TN[t]+(sg?' – Single Item':' – Multi Item'),IC[t],`<h3>${TN[t]} Voucher</h3><div class="formline">${fl('Date',inp('date','date',r.date))}${fl(p?'Supplier':'Customer',`<select id="f_acc">${accO(a=>!isCB(a),r.acc,'Select Account')}</select>`)}${fl('Bill / Invoice No',`<input id="f_inv" value="${esc(r.inv||'')}">`)}</div><div class="table-wrap" style="margin-top:10px"><table class="tbl"><thead><tr><th>Item</th><th>Qty</th><th>Rate (₹)</th><th>Amount</th><th></th></tr></thead><tbody id="vL">${(r.items||[{}]).map(vr).join('')}</tbody></table></div>${sg?'':`<button class="btn light small" style="margin-top:8px" onclick="$('vL').insertAdjacentHTML('beforeend',X.vr())">+ Add Item</button>`}<div class="sumline">Total: <b id="vT">₹ 0.00</b></div><div class="formline" style="margin-top:10px">${fl(p?'Paid Now (₹)':'Received Now (₹)',`<input id="f_paid" type="number" min="0" step=".01" value="${r.paid||0}">`)}${fl('Cash / Bank A/c',`<select id="f_pay">${accO(isCB,r.payAcc,'Select')}</select>`)}${fl('Remarks',`<input id="f_rem" value="${esc(r.remarks||'')}">`)}</div><div class="actions" style="padding:14px 0 0"><button class="btn" onclick="X.vsave()">Save</button><button class="btn light" onclick="X.voucher('${t}',${single})">Clear / New</button><button class="btn light" onclick="X.list('${t}')">📂 View List</button></div>`);vc()}
+function vpick(s){const i=db.items.find(x=>x.name===s.value),pr=s.closest('tr').querySelector('.vp');if(i&&!num(pr.value))pr.value=vt==='purchase'?i.purchaseRate:i.saleRate;vc()}
+function vc(){let s=0;document.querySelectorAll('#vL tr').forEach(r=>{const a=num(r.querySelector('.vq').value)*num(r.querySelector('.vp').value);r.querySelector('.va').textContent=m2(a);s+=a});$('vT').textContent=fmt(s)}
+function vsave(){const t=vt,items=[];
+ for(const r of document.querySelectorAll('#vL tr')){const item=r.querySelector('.vi').value,qty=num(r.querySelector('.vq').value),rate=num(r.querySelector('.vp').value);if(!item&&!qty)continue;if(!item||!(qty>0))return say('ஒவ்வொரு வரிக்கும் Item மற்றும் Qty (>0) தேவை',1);items.push({item,qty,rate})}
+ const date=g('f_date'),acc=g('f_acc'),paid=num(g('f_paid')),payAcc=g('f_pay');
+ if(!date)return say('Date தேவை',1);if(!acc)return say('Account தேர்வு செய்யவும்',1);if(!items.length)return say('குறைந்தது ஒரு Item உள்ளிடவும்',1);
+ const total=items.reduce((s,r)=>s+r.qty*r.rate,0);
+ if(paid<0||paid>total)return say('செலுத்திய தொகை மொத்தத்தை விட அதிகம் / எதிர்மறை',1);if(paid>0&&!payAcc)return say('Cash / Bank Account தேர்வு செய்யவும்',1);
+ if(t==='sales'){const s=stk(),old=eV?db.tx.find(x=>x.id===eV):null,need={};items.forEach(r=>need[r.item]=(need[r.item]||0)+r.qty);
+  const low=Object.keys(need).filter(n=>((s[n]||{c:0}).c+(old?old.items.filter(r=>r.item===n).reduce((a,r)=>a+r.qty,0):0)-need[n])<0);
+  if(low.length&&!confirm('Stock போதாது: '+low.join(', ')+'\nஅப்படியும் சேமிக்கவா?'))return}
+ const o={type:t,id:eV||U(),date,acc,inv:g('f_inv').trim(),items,total,paid,payAcc:paid>0?payAcc:'',remarks:g('f_rem').trim()};
+ if(eV)db.tx[db.tx.findIndex(x=>x.id===eV)]=o;else db.tx.push(o);
+ persist();voucher(t,sg);say(TN[t]+' சேமிக்கப்பட்டது – மொத்தம் '+fmt(total))}
+
+/* ---- Lists / search / edit / delete ---- */
+const HD={production:['Date','Item','Qty','Remarks'],purchase:['Date','Bill No','Account','Items','Total','Paid'],sales:['Date','Bill No','Account','Items','Total','Received'],receipt:['Date','Account','Mode','Amount','Ref'],payment:['Date','Account','Mode','Amount','Ref'],cashbank:['Date','Cash/Bank','Type','Account','Amount','Narration']};
+function cells(x){const T=x.type;
+ if(T==='production')return[x.date,x.item,x.qty,x.remarks||''];
+ if(T==='purchase'||T==='sales')return[x.date,x.inv||'',an(x.acc),x.items.map(r=>r.item+' × '+r.qty).join(', '),fmt(x.total),fmt(x.paid||0)];
+ if(T==='receipt'||T==='payment')return[x.date,an(x.acc),an(x.bank),fmt(x.amt),x.ref||''];
+ return[x.date,an(x.bank),x.kind,x.acc?an(x.acc):'—',fmt(x.amt),x.remarks||'']}
+const act=(t,id)=>`<button class="btn small" onclick="X.edit('${t}','${id}')">✏️ Edit</button> <button class="btn small danger" onclick="X.del('${id}')">🗑 Delete</button>`;
+const sortD=(a,b)=>a.date<b.date?1:a.date>b.date?-1:0;
+function list(t){const pr=t==='production';
+ P(TN[t]+' List','📂',`<h3>${TN[t]} – List / Search</h3><div class="formline">${fl('From','<input id="lf" type="date">')}${fl('To','<input id="lt" type="date">')}${fl(pr?'Item':'Account',`<select id="la">${pr?op(itemNames(),'','All Items'):accO(null,'','All Accounts')}</select>`)}${fl('Search','<input id="lq" placeholder="text">')}<button class="btn" onclick="X.ll('${t}')">Search</button><button class="btn light" onclick="X.lclr('${t}')">Clear</button><button class="btn light" onclick="X.nw('${t}')">➕ New</button></div><div id="lr" style="margin-top:12px"></div>`,true);ll(t)}
+function ll(t){cur=()=>ll(t);const f=g('lf'),to=g('lt'),a=g('la'),q=g('lq').toLowerCase();
+ const L=db.tx.filter(x=>x.type===t&&(!f||x.date>=f)&&(!to||x.date<=to)&&(!a||(t==='production'?x.item===a:[x.acc,x.bank,x.payAcc].includes(a)))&&(!q||cells(x).join(' ').toLowerCase().includes(q))).sort(sortD);
+ const tot=L.reduce((s,x)=>s+num(x.total??x.amt??x.qty),0);
+ $('lr').innerHTML=`<div class="sumline">Records: <b>${L.length}</b> | Total: <b>${t==='production'?tot:fmt(tot)}</b></div>`+tbl([...HD[t],'Action'],L.map(x=>rw([...cells(x).map(c=>esc(c)),act(t,x.id)])))}
+function lclr(t){['lf','lt','la','lq'].forEach(i=>$(i).value='');ll(t)}
+const nw=t=>t==='purchase'||t==='sales'?voucher(t,0):form(t);
+const edit=(t,id)=>t==='purchase'||t==='sales'?voucher(t,0,id):form(t,id);
+function del(id){if(!confirm('இந்த பதிவை நிரந்தரமாக நீக்கவா?'))return;db.tx=db.tx.filter(x=>x.id!==id);persist();if(cur)cur();say('பதிவு நீக்கப்பட்டது')}
+
+/* ---- Account ledger ---- */
+function ledger(){P('Account Ledger','📂',`<h3>Account Ledger</h3><div class="formline">${fl('Account',`<select id="gA">${accO(null,'','Select Account')}</select>`)}${fl('From','<input id="gF" type="date">')}${fl('To','<input id="gT" type="date">')}<button class="btn" onclick="X.lg()">Show</button></div><div id="gR" style="margin-top:12px"></div>`,true)}
+function lg(){const id=g('gA'),f=g('gF'),to=g('gT');if(!id)return say('Account தேர்வு செய்யவும்',1);const a=A(id);let b=(a.side==='Cr'?-1:1)*num(a.opening);
+ const L=lines().filter(l=>l.a===id).sort((x,y)=>x.t.date<y.t.date?-1:x.t.date>y.t.date?1:0);
+ L.filter(l=>f&&l.t.date<f).forEach(l=>b+=l.dr-l.cr);
+ const rows=[rw(['','<b>Opening Balance</b>','','',bs(b)])];let dr=0,cr=0;
+ L.filter(l=>(!f||l.t.date>=f)&&(!to||l.t.date<=to)).forEach(l=>{dr+=l.dr;cr+=l.cr;b+=l.dr-l.cr;rows.push(rw([l.t.date,esc(l.d),l.dr?m2(l.dr):'',l.cr?m2(l.cr):'',bs(b)]))});
+ rows.push(rw(['','<b>Total / Closing</b>','<b>'+m2(dr)+'</b>','<b>'+m2(cr)+'</b>','<b>'+bs(b)+'</b>']));
+ $('gR').innerHTML=`<div class="sumline">${esc(a.name)} – Closing Balance: <b>${bs(b)}</b></div>`+tbl(['Date','Particulars','Debit','Credit','Balance'],rows)}
+
+/* ---- Day book ---- */
+const part=x=>x.type==='production'?x.item:x.type==='cashbank'?an(x.bank):an(x.acc);
+function day(m){P('Day Book','📘',`<h3>Day Book</h3><div class="formline">${fl('From',`<input id="dF" type="date" value="${m==='a'?td():''}">`)}${fl('To',`<input id="dE" type="date" value="${m==='a'?td():''}">`)}${fl('Type',`<select id="dT">${op(Object.entries(TN),'','All Types')}</select>`)}${fl('Search','<input id="dQ">')}<button class="btn" onclick="X.dl()">Show</button></div><div id="dR" style="margin-top:12px"></div>`,true);dl()}
+function dl(){cur=dl;const f=g('dF'),e=g('dE'),ty=g('dT'),q=g('dQ').toLowerCase();
+ const L=db.tx.filter(x=>(!f||x.date>=f)&&(!e||x.date<=e)&&(!ty||x.type===ty)&&(!q||(part(x)+cells(x).join(' ')).toLowerCase().includes(q))).sort(sortD);
+ const S=k=>L.filter(x=>x.type===k).reduce((s,x)=>s+num(x.total??x.amt),0);
+ $('dR').innerHTML=`<div class="sumline">Purchase: <b>${fmt(S('purchase'))}</b> | Sales: <b>${fmt(S('sales'))}</b> | Receipt: <b>${fmt(S('receipt'))}</b> | Payment: <b>${fmt(S('payment'))}</b></div>`+tbl(['Date','Type','Particulars','Details','Amount','Action'],L.map(x=>rw([x.date,TN[x.type],esc(part(x)),esc(cells(x).slice(2).join(' | ')),x.type==='production'?x.qty+' qty':fmt(x.total??x.amt),act(x.type,x.id)])))}
+
+/* ---- Reports ---- */
+function rep(k){const N={a:'Daily Report',b:'Monthly Report',c:'Labour / Production Report',d:'Stock Report'};
+ const c=k==='a'?fl('Date',`<input id="rD" type="date" value="${td()}">`):k==='b'?fl('Month',`<input id="rM" type="month" value="${td().slice(0,7)}">`):k==='c'?fl('From',`<input id="rF" type="date" value="${td().slice(0,8)}01">`)+fl('To',`<input id="rT" type="date" value="${td()}">`):'';
+ P(N[k],'📊',`<h3>${N[k]}</h3><div class="formline">${c}<button class="btn" onclick="X.rr('${k}')">Show</button></div><div id="rO" style="margin-top:12px"></div>`,true);rr(k)}
+function rr(k){let h='';
+ if(k==='a'){const x=g('rD'),d=db.days[x],T=db.tx.filter(t=>t.date===x),S=(ty,f)=>T.filter(t=>t.type===ty).reduce((a,t)=>a+num(t[f]),0);
+  h=tbl(['Particulars','Value'],[['Labour Wage Total',fmt(d?d.total:0)],['Labour Count / Wage per Labour',(d?d.labourCount:0)+' / '+fmt(d?d.perLabour:0)],['Cement (Opening / Used / Purchase / Closing)',d?[d.opening,d.used,d.purchase,d.closing].join(' / '):'—'],['Production Entries',esc(T.filter(t=>t.type==='production').map(t=>t.item+' × '+t.qty).join(', ')||'—')],['Purchase',fmt(S('purchase','total'))],['Sales',fmt(S('sales','total'))],['Receipts',fmt(S('receipt','amt'))],['Payments',fmt(S('payment','amt'))]].map(rw))}
+ else if(k==='b'){const mo=g('rM'),D={},e=d=>D[d]||(D[d]=[0,0,0,0,0,0,0]);
+  Object.keys(db.days).filter(d=>d.startsWith(mo)).forEach(d=>{const x=db.days[d];e(d)[0]=num(x.total);e(d)[1]=x.rows.reduce((s,r)=>s+num(r.qty),0)});
+  db.tx.filter(t=>t.date.startsWith(mo)).forEach(t=>{const o=e(t.date),i={production:2,purchase:3,sales:4,receipt:5,payment:6}[t.type];if(i)o[i]+=num(t.total??t.amt??t.qty)});
+  const K=Object.keys(D).sort(),T=[0,0,0,0,0,0,0];K.forEach(d=>D[d].forEach((v,i)=>T[i]+=v));
+  h=tbl(['Date','Labour Wage','Daily Entry Qty','Production Qty','Purchase','Sales','Receipt','Payment'],[...K.map(d=>rw([d,m2(D[d][0]),D[d][1],D[d][2],m2(D[d][3]),m2(D[d][4]),m2(D[d][5]),m2(D[d][6])])),rw(['<b>Total</b>',...T.map((v,i)=>'<b>'+(i===1||i===2?v:m2(v))+'</b>')])])}
+ else if(k==='c'){const f=g('rF'),to=g('rT'),LB={},PR={},PT={};
+  Object.keys(db.days).sort().filter(d=>(!f||d>=f)&&(!to||d<=to)).forEach(d=>{const x=db.days[d];new Set(x.rows.map(r=>r.labour).filter(Boolean)).forEach(n=>{const o=LB[n]||(LB[n]={d:0,w:0});o.d++;o.w+=num(x.perLabour)});
+   x.rows.forEach(r=>{if(!r.product)return;const o=PR[r.product]||(PR[r.product]={q:0,a:0});o.q+=num(r.qty);o.a+=num(r.qty)*num(x.rates[r.product])})});
+  db.tx.filter(t=>t.type==='production'&&(!f||t.date>=f)&&(!to||t.date<=to)).forEach(t=>PT[t.item]=(PT[t.item]||0)+num(t.qty));
+  h='<h3>Labour Wages</h3>'+tbl(['Labour','Days','Total Wage'],Object.keys(LB).sort().map(n=>rw([esc(n),LB[n].d,fmt(LB[n].w)])))+'<h3 style="margin-top:14px">Daily Entry Production</h3>'+tbl(['Product','Qty','Wage Amount'],Object.keys(PR).sort().map(n=>rw([esc(n),PR[n].q,fmt(PR[n].a)])))+'<h3 style="margin-top:14px">Production Entries</h3>'+tbl(['Item','Qty'],Object.keys(PT).sort().map(n=>rw([esc(n),PT[n]])))}
+ else{const s=stk(),I=n=>db.items.find(i=>i.name===n)||{},K=Object.keys(s).sort();let v=0;
+  h=tbl(['Item','Unit','Opening','Purchase','Production','Sales','Closing','Value (₹)'],K.map(n=>{const x=s[n],a=x.c*num(I(n).purchaseRate);v+=a;return rw([esc(n),I(n).unit||'',x.o,x.p,x.r,x.s,'<b>'+x.c+'</b>',m2(a)])}))+`<div class="sumline">Total Stock Value (Purchase Rate): <b>${fmt(v)}</b></div>`}
+ $('rO').innerHTML=h}
+
+/* ---- External database ---- */
+const CK='acw_ext_cfg';let cfg={};try{cfg=JSON.parse(localStorage.getItem(CK))||{}}catch(e){}
+let fh=null,tm,st={f:'—',r:'—',d:'—'};const hd=()=>({'Content-Type':'application/json',...(cfg.token?{Authorization:'Bearer '+cfg.token}:{})}),FT={types:[{accept:{'application/json':['.json']}}]};
+const idb=()=>new Promise((ok,no)=>{const q=indexedDB.open('acw_ext',1);q.onupgradeneeded=()=>q.result.createObjectStore('h');q.onsuccess=()=>ok(q.result);q.onerror=no});
+async function hput(h){(await idb()).transaction('h','readwrite').objectStore('h').put(h,'fh')}
+async function hget(){const d=await idb();return new Promise(ok=>{const q=d.transaction('h').objectStore('h').get('fh');q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)})}
+function badge(){const t='🗄 File: '+st.f+' | Server: '+st.r+' | Drive: '+st.d;if($('extB'))$('extB').textContent=t;if($('dbS'))$('dbS').textContent=t}
+async function fwrite(){if(!fh)return;try{if(await fh.queryPermission({mode:'readwrite'})!=='granted'){st.f='⚠ Reconnect';return badge()}const w=await fh.createWritable();await w.write(JSON.stringify(db,null,1));await w.close();st.f='✔ '+new Date().toLocaleTimeString()}catch(e){st.f='✖ '+e.message}badge()}
+async function rpush(){if(!cfg.url)return;try{const r=await fetch(cfg.url,{method:'PUT',headers:hd(),body:JSON.stringify(db)});if(!r.ok)throw new Error('HTTP '+r.status);st.r='✔ '+new Date().toLocaleTimeString()}catch(e){st.r='✖ '+e.message}badge()}
+async function rget(){const r=await fetch(cfg.url,{headers:hd()});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+window.extSync=()=>{clearTimeout(tm);tm=setTimeout(()=>{fwrite();if(cfg.url&&cfg.auto!==false)rpush();dPush()},700)};
+const ok=x=>x&&Array.isArray(x.labours)&&Array.isArray(x.products)&&x.days&&typeof x.days==='object';
+function load(x,m){db=normalize(x);persist();loadDate();say(m)}
+async function fnew(){try{fh=await showSaveFilePicker({suggestedName:'ACW_Database.json',...FT});await hput(fh);await fwrite();dbs()}catch(e){if(e.name!=='AbortError')say(e.message,1)}}
+async function fopen(){try{[fh]=await showOpenFilePicker(FT);await hput(fh);const t=await(await fh.getFile()).text();let x=null;try{x=JSON.parse(t)}catch(e){}
+ if(ok(x)&&confirm('இந்த file-இல் உள்ள data-வை load செய்யவா? (தற்போதைய data மாற்றப்படும்)\nCancel = தற்போதைய data-வை file-இல் எழுதும்'))load(x,'File data loaded');else await fwrite();dbs()}catch(e){if(e.name!=='AbortError')say(e.message,1)}}
+async function freco(){try{if(fh&&await fh.requestPermission({mode:'readwrite'})==='granted'){await fwrite();dbs()}}catch(e){say(e.message,1)}}
+function rsave(){cfg={url:g('rU').trim(),token:g('rK').trim(),auto:$('rA').checked};localStorage.setItem(CK,JSON.stringify(cfg));say('Server settings சேமிக்கப்பட்டன')}
+async function rtest(){rsave();if(!cfg.url)return say('Server URL உள்ளிடவும்',1);try{await rget();st.r='✔ connected';badge();say('Server இணைப்பு வெற்றி')}catch(e){st.r='✖ '+e.message;badge();say('இணைக்க முடியவில்லை: '+e.message,1)}}
+async function rpushNow(){rsave();if(!cfg.url)return say('Server URL உள்ளிடவும்',1);await rpush();say('Server-க்கு அனுப்பப்பட்டது: '+st.r)}
+async function rpull(){rsave();try{const x=await rget();if(!ok(x))return say('Server-இல் data இல்லை – முதலில் Push செய்யவும்',1);if(confirm('Server data-வை load செய்தால் தற்போதைய data மாற்றப்படும். தொடரவா?'))load(x,'Server data loaded')}catch(e){say('Pull தோல்வி: '+e.message,1)}}
+const DCID='366540442316-3puba9gfedg8gdvtihstmnjr1112g410.apps.googleusercontent.com',DFN='ACW_Database.json',DSC='https://www.googleapis.com/auth/drive.file',DRV='https://www.googleapis.com/drive/v3/files',DUP='https://www.googleapis.com/upload/drive/v3/files';
+let dTok=null,dExp=0,dId='',dMod='',dOn=false,dBusy=false,dAgain=false,dSkip=0;
+try{dId=localStorage.getItem('ACW_DRIVE_FILE_ID')||'';dOn=localStorage.getItem('ACW_DRIVE_ON')==='1'}catch(e){}
+const dSet=()=>{try{localStorage.setItem('ACW_DRIVE_FILE_ID',dId);localStorage.setItem('ACW_DRIVE_ON',dOn?'1':'0')}catch(e){}};
+function dGsi(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return res();const sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.onload=()=>res();sc.onerror=()=>rej(new Error('Google script load ஆகவில்லை – Internet சரிபார்க்கவும்'));document.head.appendChild(sc)})}
+async function dAuth(){if(dTok&&Date.now()<dExp-60000)return dTok;await dGsi();return new Promise((res,rej)=>{google.accounts.oauth2.initTokenClient({client_id:DCID,scope:DSC,callback:r=>{if(r.error)return rej(new Error(r.error));dTok=r.access_token;dExp=Date.now()+(r.expires_in||3600)*1000;res(dTok)},error_callback:e=>rej(new Error((e&&e.type)||'popup blocked'))}).requestAccessToken({prompt:''})})}
+async function dFetch(u,o={}){const t=await dAuth(),r=await fetch(u,{...o,headers:{...(o.headers||{}),Authorization:'Bearer '+t}});if(r.status===401){dTok=null;throw new Error('Login தேவை (401)')}if(!r.ok)throw new Error('Drive error '+r.status);return r}
+async function dFind(){if(dId){try{const j=await(await dFetch(`${DRV}/${dId}?fields=id,modifiedTime,trashed`)).json();if(!j.trashed){dMod=j.modifiedTime;return dId}}catch(e){if(/401|popup|access_denied/.test(e.message))throw e}}
+ const q=encodeURIComponent(`name='${DFN}' and trashed=false`),j=await(await dFetch(`${DRV}?q=${q}&orderBy=${encodeURIComponent('modifiedTime desc')}&fields=files(id,modifiedTime)`)).json();
+ if(j.files&&j.files.length){dId=j.files[0].id;dMod=j.files[0].modifiedTime;dSet();return dId}dId='';dSet();return ''}
+async function dUpload(){const body=JSON.stringify(db);
+ if(!dId){const bd='acw'+Date.now(),meta=JSON.stringify({name:DFN,mimeType:'application/json'}),mp=`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${bd}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${bd}--`;
+  const j=await(await dFetch(`${DUP}?uploadType=multipart&fields=id,modifiedTime`,{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+bd},body:mp})).json();dId=j.id;dMod=j.modifiedTime;dSet()}
+ else{const j=await(await dFetch(`${DUP}/${dId}?uploadType=media&fields=modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json'},body})).json();dMod=j.modifiedTime}}
+async function dPull(){const id=await dFind();if(!id)return false;const x=JSON.parse((await(await dFetch(`${DRV}/${id}?alt=media`)).text())||'{}');if(!ok(x))return false;dSkip=Date.now()+3000;load(x,'Google Drive data loaded');return true}
+async function dPush(){if(!dOn||Date.now()<dSkip)return;if(dBusy){dAgain=true;return}dBusy=true;
+ try{if(dId){const m=(await(await dFetch(`${DRV}/${dId}?fields=modifiedTime`)).json()).modifiedTime;
+   if(dMod&&m>dMod&&!confirm('வேறு device-இல் Drive data மாற்றப்பட்டுள்ளது.\nOK = இந்த device data-வை Drive-க்கு ஏற்று (Drive data மாற்றப்படும்)\nCancel = Drive data-வை load செய்')){await dPull();st.d='✔ loaded';return}}
+  await dUpload();st.d='✔ '+new Date().toLocaleTimeString()}
+ catch(e){st.d='⚠ '+e.message+' (Database → Connect)'}
+ finally{dBusy=false;badge();if(dAgain){dAgain=false;dPush()}}}
+async function dConnect(){if(location.protocol==='file:')return say('Google Drive https முகவரியில் (github.io) மட்டுமே வேலை செய்யும்',1);
+ try{st.d='… connecting';badge();await dAuth();const f=await dFind();dOn=true;dSet();
+  if(f){if(confirm('Drive-இல் ACW_Database.json உள்ளது.\nOK = Drive data-வை load செய்\nCancel = இந்த device data-வை Drive-க்கு ஏற்று'))await dPull();else await dUpload()}else await dUpload();
+  st.d='✔ connected';badge();say('Google Drive இணைக்கப்பட்டது')}
+ catch(e){dOn=false;dSet();st.d='✖ '+e.message;badge();say('Drive இணைப்பு தோல்வி: '+e.message,1)}}
+async function dPushNow(){if(!dOn)return say('முதலில் Connect செய்யவும்',1);dSkip=0;await dPush();say('Drive: '+st.d)}
+async function dPullNow(){if(!dOn)return say('முதலில் Connect செய்யவும்',1);try{if(!(await dPull()))say('Drive-இல் data இல்லை – Push செய்யவும்',1)}catch(e){say('Pull தோல்வி: '+e.message,1)}}
+function dOff(){dOn=false;dTok=null;dSet();st.d='off';badge();say('Google Drive இணைப்பு நிறுத்தப்பட்டது')}
+function dbs(){P('External Database','🗄️',`<h3>External Database Setup</h3><div class="sumline" id="dbS"></div><h3 style="margin-top:14px">1. Database File (Disk / Google Drive / OneDrive folder)</h3><p class="hint">${window.showSaveFilePicker?'ஒரு .json file-ஐ இணைத்தால் ஒவ்வொரு Save-உம் தானாக அதில் எழுதப்படும்.':'⚠ இந்த Browser-இல் File link ஆதரவு இல்லை (Chrome / Edge Desktop தேவை). Server முறையைப் பயன்படுத்தவும்.'}</p><div class="actions" style="padding:0"><button class="btn" onclick="X.fnew()">➕ New DB File</button><button class="btn light" onclick="X.fopen()">📂 Open Existing File</button><button class="btn light" onclick="X.freco()">🔄 Reconnect</button></div><h3 style="margin-top:18px">2. Remote Server (REST – GET / PUT JSON)</h3><div class="formline">${fl('Server URL',`<input id="rU" placeholder="http://192.168.1.10:3000/db" value="${esc(cfg.url||'')}">`)}${fl('Token (optional)',`<input id="rK" value="${esc(cfg.token||'')}">`)}${fl('Auto Sync',`<input id="rA" type="checkbox" ${cfg.auto!==false?'checked':''} style="min-width:0">`)}</div><div class="actions" style="padding:10px 0 0"><button class="btn" onclick="X.rtest()">Save & Test</button><button class="btn light" onclick="X.rpush()">⬆ Push to Server</button><button class="btn light" onclick="X.rpull()">⬇ Pull from Server</button></div><h3 style="margin-top:18px">3. Google Drive (உங்கள் Google கணக்கு)</h3><p class="hint">Data உங்கள் Drive-இல் <b>ACW_Database.json</b> என்ற தனி file-ஆகச் சேமிக்கப்படும் (index.html-இன் CH_Database.json-உடன் கலக்காது). Connect செய்ததும் ஒவ்வொரு Save-உம் தானாக Drive-க்குச் செல்லும். இந்தப் page github.io முகவரியில் திறந்திருக்க வேண்டும்.</p><div class="actions" style="padding:0"><button class="btn" onclick="X.dConnect()">🔗 Connect Google Drive</button><button class="btn light" onclick="X.dPushNow()">⬆ Push Now</button><button class="btn light" onclick="X.dPullNow()">⬇ Pull from Drive</button><button class="btn danger" onclick="X.dOff()">Disconnect</button></div>`,true);badge()}
+function bak(){P('Backup / Restore','💾',`<h3>Backup / Restore</h3><div class="sumline">Accounts: <b>${db.accounts.length}</b> | Items: <b>${db.items.length}</b> | Transactions: <b>${db.tx.length}</b> | Daily Entries: <b>${Object.keys(db.days).length}</b></div><div class="actions" style="padding:12px 0 0"><button class="btn" onclick="exportDB()">⬇ Export Data (JSON)</button><label class="btn light">⬆ Import Data<input type="file" accept=".json" onchange="importDB(event)" hidden></label></div>`)}
+
+/* ---- Menu wiring ---- */
+const sub=(a,b,c)=>[a,b,c];
+M['Production']=[sub('➕','a. Production Entry','x:f:production'),sub('📋','b. Production List (Select / Edit / Delete)','x:l:production'),sub('🔎','c. Search & Filter','x:l:production')];
+['purchase','sales'].forEach(t=>M[TN[t]]=[sub('➕','a. Single Item Entry','x:v:'+t+':1'),sub('📥','b. Multi Item Entry','x:v:'+t+':0'),sub('📂','c. List (Select / Edit / Delete)','x:l:'+t),sub('🔎','d. Search & Filter','x:l:'+t)]);
+M['Receipt']=[sub('➕','a. New Receipt Entry','x:f:receipt'),sub('📂','b. Receipt List (Edit / Delete)','x:l:receipt'),sub('🔎','c. Search & Filter','x:l:receipt')];
+M['Payment']=[sub('➕','a. New Payment Entry','x:f:payment'),sub('📂','b. Payment List (Edit / Delete)','x:l:payment'),sub('🔎','c. Search & Filter','x:l:payment')];
+M['Bank / Cash']=[sub('➕','a. Cash / Bank Entry','x:f:cashbank'),sub('📂','b. Account Ledger','x:ledger'),sub('🔎','c. Search & Filter','x:l:cashbank')];
+M['Day Book']=[sub('📅','a. Daily Transactions','x:day:a'),sub('📂','b. Day Book List','x:day:b'),sub('🔎','c. Search & Filter','x:day:c')];
+M['Reports']=[sub('📊','a. Daily Report','x:rep:a'),sub('📈','b. Monthly Report','x:rep:b'),sub('📋','c. Labour / Production Report','x:rep:c'),sub('🧾','d. Stock Report','x:rep:d')];
+M['Account Master']=[sub('📒','a. Account Master (Create / Edit / Delete)','x:acc'),sub('🔎','b. Account List & Search','x:acc')];
+M['Item Master']=[sub('📦','a. Item Master (Create / Edit / Delete)','x:item'),sub('🔎','b. Item List & Search','x:item')];
+M['Database']=[sub('🗄️','a. External Database Setup','x:dbs'),sub('💾','b. Backup / Restore','x:bak')];
+const R={f:a=>form(a[0]),v:a=>voucher(a[0],+a[1]),l:a=>list(a[0]),ledger,day:a=>day(a[0]),rep:a=>rep(a[0]),acc:accScr,item:itemScr,dbs,bak};
+const _cm=chooseMenuOption;
+chooseMenuOption=function(n,i){const o=M[n][i],c=o[2]||'';if(c.slice(0,2)!=='x:')return _cm(n,i);const[k,...a]=c.slice(2).split(':');R[k](a)};
+const mb=document.querySelector('.menu');['Account Master','Item Master','Database'].forEach(n=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>openMenuModal(n);mb.appendChild(b)});
+const eb=document.createElement('span');eb.id='extB';eb.style.cursor='pointer';eb.onclick=()=>openMenuModal('Database');document.querySelector('.datebar').appendChild(eb);
+
+window.X={accScr,accList,accSave,accEdit,accDel,itemScr,itemList,itemSave,itemEdit,itemDel,form,fsave,voucher,vr,vpick,vc,vsave,list,ll,lclr,nw,edit,del,lg,dl,rr,fnew,fopen,freco,rtest,rpush:rpushNow,rpull,dConnect,dPushNow,dPullNow,dOff};
+
+/* ---- Startup ---- */
+if(!db.accounts.some(a=>a.group==='Cash')){db.accounts.push({id:U(),name:'Cash in Hand',group:'Cash',phone:'',address:'',opening:0,side:'Dr'});persist()}
+hget().then(async h=>{if(h){fh=h;try{st.f=(await h.queryPermission({mode:'readwrite'}))==='granted'?'✔ linked':'⚠ Reconnect'}catch(e){}}badge()}).catch(badge);
+if(cfg.url)rget().then(x=>{if(ok(x)&&num(x.updatedAt)>num(db.updatedAt)&&confirm('Server-இல் புதிய data உள்ளது. Load செய்யவா?'))load(x,'Server data loaded');st.r='✔ connected';badge()}).catch(e=>{st.r='✖ '+e.message;badge()});
+badge();
+if(dOn){st.d='⚠ Reconnect (Database → Connect)';badge()}
+})();
+</script></body></html>
