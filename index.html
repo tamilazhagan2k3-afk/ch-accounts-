@@ -877,6 +877,7 @@
       setTimeout(() => { if (t && t.parentNode) t.remove(); }, 14000);
     }
     function queueFileWrite() {
+      if (chArch) return;
       _filePending = true;
       if (_fileWriting) return;
       _fileWriting = true;
@@ -887,7 +888,7 @@
             let w = null;
             try {
               w = await extHandle.createWritable();
-              await w.write(JSON.stringify(APP_DB, null, 2));
+              await w.write(JSON.stringify(APP_DB));
               await w.close(); w = null;
               _saveErr.file = false; refreshSaveBadge();
             } catch (e) {
@@ -910,9 +911,9 @@
 
     function saveDB(key, val) {
       if (key) APP_DB[key] = val;
-      try { localStorage.setItem('CH_EXTERNAL_DB_CACHE_V30', JSON.stringify(APP_DB)); _saveErr.ls = false; if (!_saveErr.file) refreshSaveBadge(); }
-      catch (e) { _saveErr.ls = true; showSaveWarning('Browser storage-ல் சேமிக்க முடியவில்லை (இடம் நிரம்பியிருக்கலாம்). உடனே Export மூலம் backup எடுக்கவும்.'); }
-      if (extHandle) queueFileWrite();
+      if (chArch) { chArchSaveSoon(); return; }
+      chPersistSoon();
+      if (extHandle) chFileSoon();
     }
 
     async function connectExistingDB() {
@@ -4968,6 +4969,12 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       return Array.from(a, b=>b.toString(16).padStart(2,'0')).join('');
     }
     async function authHash(password, salt) {
+      if (!window.crypto || !crypto.subtle) throw new Error('இந்த browser-ல் password hashing ஆதரவு இல்லை.');
+      const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', iterations: 150000, salt: new TextEncoder().encode(salt) }, k, 256);
+      return 'p2:' + Array.from(new Uint8Array(bits), b => b.toString(16).padStart(2, '0')).join('');
+    }
+    async function authHashLegacy(password, salt) {
       if (!window.crypto || !crypto.subtle) throw new Error('இந்த browser-ல் password hashing ஆதரவு இல்லை. Chrome-இல் திறந்து முயற்சிக்கவும்.');
       const data = new TextEncoder().encode(salt + ':' + password);
       const digest = await crypto.subtle.digest('SHA-256', data);
@@ -5017,8 +5024,12 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
         }
         const user=authReadUsers().find(u=>u.username.toLowerCase()===username.toLowerCase());
         if(!user) throw new Error('Username அல்லது Password தவறாக உள்ளது.');
-        const hash=await authHash(password,user.salt);
-        if(hash!==user.hash) throw new Error('Username அல்லது Password தவறாக உள்ளது.');
+        if(String(user.hash).indexOf('p2:')===0){
+          if(await authHash(password,user.salt)!==user.hash) throw new Error('Username அல்லது Password தவறாக உள்ளது.');
+        } else {
+          if(await authHashLegacy(password,user.salt)!==user.hash) throw new Error('Username அல்லது Password தவறாக உள்ளது.');
+          user.hash=await authHash(password,user.salt); authWriteUsers(authReadUsers()); // பழைய hash → PBKDF2 ஆக தானாக மேம்படுத்தல்
+        }
         authLoginSuccess(user);
       } catch(e) { msg.textContent=e.message||'Login செய்ய முடியவில்லை.'; }
       finally { btn.disabled=false; }
@@ -5421,7 +5432,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       return true;
     }
     async function drivePush() {
-      if (!driveOn || driveBusy) return; driveBusy = true; driveBadgeSet('☁️ Saving…', '');
+      if (!driveOn || driveBusy || chArch) return; driveBusy = true; driveBadgeSet('☁️ Saving…', '');
       try {
         if (driveFileId) {
           const m = (await (await driveFetch(`${DRV}/${driveFileId}?fields=modifiedTime`)).json()).modifiedTime;
@@ -5436,7 +5447,7 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
     const _saveDB0 = saveDB;
     saveDB = function (...a) {
       const r = _saveDB0.apply(this, a);
-      if (driveOn && !driveSkip) { clearTimeout(driveTimer); driveTimer = setTimeout(drivePush, 1500); driveBadgeSet('☁️ …', ''); }
+      if (driveOn && !driveSkip) { clearTimeout(driveTimer); driveTimer = setTimeout(drivePush, 20000); driveBadgeSet('☁️ …', ''); }
       return r;
     };
     async function driveConnect(mode) {
@@ -5834,7 +5845,421 @@ JK Wall Putty 40Kg Bag\tJK40\tWall Putty\t3214\t50Kg\t20\t720\t850\t18`;
       });
       window.addEventListener('beforeunload', e => { if (!armed || allowExit) return; e.preventDefault(); e.returnValue = ''; });
     })();
-    window.onload = () => { initAuth(); initKeyboardNav(); initFormNav(); };
+    window.onload = () => { chBoot().finally(initAuth); initKeyboardNav(); initFormNav(); };
+  
+    /* ================= மேம்பாடுகள் (Patch v2) ================= */
+    // IndexedDB mirror + தினசரி auto backup (கடைசி 14)
+    const IDBX = {
+      db: null,
+      open() { return this.db ? Promise.resolve(this.db) : new Promise((res, rej) => { const r = indexedDB.open('CH_DB_V2', 2); r.onupgradeneeded = () => { const d = r.result; ['kv','col'].forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); }); if (!d.objectStoreNames.contains('backups')) d.createObjectStore('backups', { keyPath: 'date' }); }; r.onsuccess = () => res(this.db = r.result); r.onerror = () => rej(r.error); }); },
+      async put(store, val, key) { const d = await this.open(); return new Promise((res, rej) => { const t = d.transaction(store, 'readwrite'); t.objectStore(store).put(val, key); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+      async all(store) { const d = await this.open(); return new Promise((res, rej) => { const q = d.transaction(store).objectStore(store).getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+      async del(store, key) { const d = await this.open(); return new Promise(res => { const t = d.transaction(store, 'readwrite'); t.objectStore(store).delete(key); t.oncomplete = res; }); }
+    };
+    async function chDailyBackup(json) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (localStorage.getItem('CH_LAST_BACKUP') === today) return;
+      await IDBX.put('backups', { date: today, size: json.length, blob: await chGz(json), gz: !!window.CompressionStream });
+      localStorage.setItem('CH_LAST_BACKUP', today);
+      const all = (await IDBX.all('backups')).sort((a, b) => a.date.localeCompare(b.date));
+      for (const b of all.slice(0, Math.max(0, all.length - 7))) await IDBX.del('backups', b.date);
+    }
+
+    // Audit log
+    function chAudit(action, detail) {
+      if (!APP_DB.AUDIT_LOG) APP_DB.AUDIT_LOG = [];
+      APP_DB.AUDIT_LOG.push({ t: new Date().toISOString(), user: (typeof currentAuthUser !== 'undefined' && currentAuthUser) ? currentAuthUser.username : '-', action, detail: detail || '' });
+      if (APP_DB.AUDIT_LOG.length > 3000) APP_DB.AUDIT_LOG.splice(0, APP_DB.AUDIT_LOG.length - 3000);
+    }
+    (function () {
+      const li = authLoginSuccess; authLoginSuccess = function (u) { li(u); chAudit('LOGIN'); saveDB(); };
+      const lo = logoutAuth; logoutAuth = function () { chAudit('LOGOUT'); lo(); };
+      const dd = deleteGenericDoc; deleteGenericDoc = function (...a) { chAudit('DELETE', a.join(' / ')); return dd.apply(this, a); };
+      // Save: Period lock + Negative stock எச்சரிக்கை + Audit
+      const sg = saveGenericTx;
+      saveGenericTx = function (isEdit) {
+        try {
+          const type = el('currentDocType').value, date = el('docDate').value;
+          if (APP_DB.LOCK_DATE && date && date <= APP_DB.LOCK_DATE) return alert('🔒 ' + APP_DB.LOCK_DATE + ' வரையிலான காலம் Lock செய்யப்பட்டுள்ளது. இந்தத் தேதியில் சேமிக்க முடியாது.');
+          if (type === 'SO' || type === 'SINV') {
+            const old = isEdit ? (APP_DB[type] || []).find(r => r.id === editDocId) : null, need = {};
+            getModalItems().forEach(it => { const k = String(it.itemName || '').toLowerCase(); need[k] = (need[k] || 0) + Number(it.qty || 0); });
+            const low = Object.keys(need).filter(k => { const back = old ? (old.items || []).filter(i => String(i.itemName || '').toLowerCase() === k).reduce((a, i) => a + Number(i.qty || 0), 0) : 0; return type === 'SO' && getItemStock(k) + back - need[k] < 0; });
+            if (low.length && !confirm('⚠️ Stock குறைவு (எதிர்மறை ஆகும்):\n• ' + low.join('\n• ') + '\n\nஆனாலும் சேமிக்கவா?')) return;
+          }
+          chAudit(isEdit ? 'EDIT' : 'NEW', type + ' ' + el('docNumberInput').value);
+        } catch (e) { console.warn(e); }
+        return sg.apply(this, arguments);
+      };
+    })();
+
+    // Backup / Audit / Lock screen
+    async function renderBackups() {
+      const list = (await IDBX.all('backups')).sort((a, b) => b.date.localeCompare(a.date));
+      el('mainContainer').innerHTML = `<h2 class="page-title">💾 Backup · 🔒 Period Lock · 🕵️ Audit</h2>
+        <p class="section-subtitle">தினசரி auto backup (கடைசி 14 நாள்) இந்த browser-இல் சேமிக்கப்படும். Period Lock: ${escH(APP_DB.LOCK_DATE || 'இல்லை')}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn btn-save" onclick="chBackupNow()">💾 இப்போது Backup</button>
+          <button class="btn btn-convert" onclick="chSetLock()">🔒 Period Lock தேதி</button>
+          <button class="btn btn-print" onclick="chShowAudit()">🕵️ Audit Log</button>
+          <button class="btn btn-cancel" onclick="showDashboard()">← Back</button></div>
+        <div id="chBkArea"><table class="data-table" style="width:100%"><thead><tr><th>தேதி</th><th>Size</th><th>Action</th></tr></thead><tbody>${list.map(b => `<tr><td>${b.date}</td><td>${(b.size / 1024).toFixed(0)} KB</td><td><button class="btn btn-print" onclick="chDlBackup('${b.date}')">⬇️ Download</button> <button class="btn btn-bulk" onclick="chRestore('${b.date}')">♻️ Restore</button></td></tr>`).join('') || '<tr><td colspan=3>இன்னும் backup இல்லை</td></tr>'}</tbody></table></div>`;
+    }
+    async function chBackupNow() { localStorage.removeItem('CH_LAST_BACKUP'); await chDailyBackup(JSON.stringify(APP_DB)); renderBackups(); }
+    async function chDlBackup(d) { const b = (await IDBX.all('backups')).find(x => x.date === d); if (b) saveFileCompat('CH_Backup_' + d + '.json', await chBkText(b), 'application/json'); }
+    async function chRestore(d) { if (!currentAuthUser || currentAuthUser.role !== 'admin') return alert('Admin மட்டுமே Restore செய்ய முடியும்.'); const b = (await IDBX.all('backups')).find(x => x.date === d); if (b && confirm(d + ' backup-ஐ Restore செய்யவா? தற்போதைய data மாறும்.')) { loadDbObject(JSON.parse(await chBkText(b))); chAudit('RESTORE', d); saveDB(); showDashboard(); } }
+    function chSetLock() { if (!currentAuthUser || currentAuthUser.role !== 'admin') return alert('Admin மட்டுமே.'); const v = prompt('இந்தத் தேதி வரை Lock (YYYY-MM-DD). நீக்க காலியாக விடவும்:', APP_DB.LOCK_DATE || ''); if (v === null) return; if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return alert('தவறான தேதி'); APP_DB.LOCK_DATE = v || ''; chAudit('LOCK', v); saveDB(); renderBackups(); }
+    function chShowAudit() { const r = (APP_DB.AUDIT_LOG || []).slice(-300).reverse(); el('chBkArea').innerHTML = `<table class="data-table" style="width:100%"><thead><tr><th>நேரம்</th><th>User</th><th>Action</th><th>Detail</th></tr></thead><tbody>${r.map(x => `<tr><td>${escH(x.t.replace('T', ' ').slice(0, 19))}</td><td>${escH(x.user)}</td><td>${escH(x.action)}</td><td>${escH(x.detail)}</td></tr>`).join('') || '<tr><td colspan=4>பதிவு இல்லை</td></tr>'}</tbody></table>`; }
+    NAV_MENU.push({ label: '💾 14. Backup / Lock / Audit', fn: 'renderBackups()' });
+  
+    /* ================= Patch v3 ================= */
+    // 1) பெயர் மாற்றினால் எல்லா பதிவுகளிலும் தானாக மாறும் (Account / Item rename cascade)
+    const CH_DOC_TYPES = ['PO','INV','SO','SINV','RECEIPT','PAYMENT','CN','DN','JV','PRET','SRET'];
+    function chRenameParty(a, b) {
+      const k = String(a).toLowerCase();
+      CH_DOC_TYPES.forEach(t => (APP_DB[t] || []).forEach(d => {
+        if (String(d.partyName || '').toLowerCase() === k) d.partyName = b;
+        if (String(d.drParty || '').toLowerCase() === k) d.drParty = b;
+        if (String(d.crParty || '').toLowerCase() === k) d.crParty = b;
+      }));
+    }
+    function chRenameItem(a, b) {
+      const k = String(a).toLowerCase();
+      CH_DOC_TYPES.forEach(t => (APP_DB[t] || []).forEach(d => (d.items || []).forEach(it => { if (String(it.itemName || '').toLowerCase() === k) it.itemName = b; })));
+    }
+    (function () {
+      const ss = saveSupplierRecord;
+      saveSupplierRecord = function () {
+        const idx = editSupIdx, old = idx !== null ? (APP_DB.SUPPLIERS[idx] || {}).name : null;
+        const r = ss.apply(this, arguments);
+        if (old != null && APP_DB.SUPPLIERS[idx] && APP_DB.SUPPLIERS[idx].name !== old) { chRenameParty(old, APP_DB.SUPPLIERS[idx].name); chAudit('RENAME ACCOUNT', old + ' → ' + APP_DB.SUPPLIERS[idx].name); saveDB(); }
+        return r;
+      };
+      const si = saveItemRecord;
+      saveItemRecord = function () {
+        const idx = editItemIdx, old = idx !== null ? (APP_DB.MATERIALS[idx] || {}).name : null;
+        const r = si.apply(this, arguments);
+        if (old != null && APP_DB.MATERIALS[idx] && APP_DB.MATERIALS[idx].name !== old) { chRenameItem(old, APP_DB.MATERIALS[idx].name); chAudit('RENAME ITEM', old + ' → ' + APP_DB.MATERIALS[idx].name); saveDB(); }
+        return r;
+      };
+      // 2) Voucher-க்கும் Period Lock
+      const sv = saveVoucher;
+      saveVoucher = function () {
+        const d = el('vDate') && el('vDate').value;
+        if (APP_DB.LOCK_DATE && d && d <= APP_DB.LOCK_DATE) return alert('🔒 ' + APP_DB.LOCK_DATE + ' வரையிலான காலம் Lock செய்யப்பட்டுள்ளது.');
+        chAudit('VOUCHER', (el('vType') ? el('vType').value : '') + ' ' + (el('vDocNo') ? el('vDocNo').value : ''));
+        return sv.apply(this, arguments);
+      };
+      // 3) Role: 'user' நீக்க முடியாது (Admin மட்டும்)
+      ['deleteGenericDoc','deleteItemByIndex','deleteAccountByIndex','deleteVoucherSafe','bulkDelGeneric','bulkDelItems','bulkDelAccounts','bulkDelReturns','bulkDelJournal','retDel','deleteJournal','deleteBankAccount','resetCleanDB','dupMerge'].forEach(n => {
+        let f; try { f = eval(n); } catch (e) { return; }
+        if (typeof f !== 'function') return;
+        const w = function () {
+          if (!currentAuthUser || currentAuthUser.role !== 'admin') return alert('🚫 நீக்க / Reset செய்ய Admin அனுமதி தேவை.');
+          chAudit('DELETE', n + ' ' + Array.prototype.slice.call(arguments).join(' / '));
+          return f.apply(this, arguments);
+        };
+        try { eval(n + ' = w'); } catch (e) {}
+      });
+    })();
+
+    // 4) GST Summary / Trial Balance / Day Book
+    let chR = { f: '', t: '' };
+    function chHead(title, fn) {
+      return `<h2 class="page-title">${title}</h2><div class="dash-filter"><input type="date" id="chFrom" value="${chR.f}"><input type="date" id="chTo" value="${chR.t}">
+        <button class="on" onclick="chR={f:el('chFrom').value,t:el('chTo').value};${fn}()">Show</button><button onclick="chR={f:'',t:''};${fn}()">All</button>
+        <button onclick="showDashboard()">← Back</button></div>`;
+    }
+    function renderGstSummary() {
+      const m = {};
+      const add = (arr, k, sg) => (arr || []).forEach(d => {
+        const dt = d.date || ''; if ((chR.f && dt < chR.f) || (chR.t && dt > chR.t)) return;
+        const r = m[dt.slice(0, 7) || '—'] = m[dt.slice(0, 7) || '—'] || { st: 0, sg: 0, pt: 0, pg: 0 };
+        const g = (+d.cgst || 0) + (+d.sgst || 0), tx = (+d.grandTotal || 0) - g;
+        if (k === 'S') { r.st += sg * tx; r.sg += sg * g; } else { r.pt += sg * tx; r.pg += sg * g; }
+      });
+      add(APP_DB.SO, 'S', 1); add(APP_DB.SRET, 'S', -1); add(APP_DB.PO, 'P', 1); add(APP_DB.PRET, 'P', -1);
+      const rows = Object.keys(m).sort().map(k => ({ k, ...m[k], net: m[k].sg - m[k].pg }));
+      window._chGst = rows;
+      const T = rows.reduce((a, r) => ({ st: a.st + r.st, sg: a.sg + r.sg, pt: a.pt + r.pt, pg: a.pg + r.pg, net: a.net + r.net }), { st: 0, sg: 0, pt: 0, pg: 0, net: 0 });
+      const tr = (r, b) => `<tr${b ? ' style="font-weight:800;background:#f8fafc"' : ''}><td>${r.k}</td><td style="text-align:right">${fmt(r.st)}</td><td style="text-align:right">${fmt(r.sg)}</td><td style="text-align:right">${fmt(r.pt)}</td><td style="text-align:right">${fmt(r.pg)}</td><td style="text-align:right">${fmt(r.net)}</td></tr>`;
+      el('mainContainer').innerHTML = chHead('📑 GST Summary (மாதவாரி)', 'renderGstSummary') +
+        `<p class="section-subtitle">Returns கழிக்கப்பட்டது. Net = Output GST − Input GST (+ செலுத்த வேண்டியது, − Credit).</p>
+        <div style="overflow-x:auto"><table class="data-table" style="width:100%"><thead><tr><th>மாதம்</th><th>Sales Taxable</th><th>Output GST</th><th>Purchase Taxable</th><th>Input GST</th><th>Net GST</th></tr></thead><tbody>${rows.map(r => tr(r)).join('') || '<tr><td colspan=6>தரவு இல்லை</td></tr>'}${rows.length ? tr({ k: 'மொத்தம்', ...T }, 1) : ''}</tbody></table></div>
+        <button class="btn btn-print" style="margin-top:10px" onclick="chGstCsv()">⬇️ CSV</button>`;
+    }
+    function chGstCsv() {
+      const h = 'Month,Sales Taxable,Output GST,Purchase Taxable,Input GST,Net GST\n';
+      saveFileCompat('GST_Summary.csv', '\ufeff' + h + (window._chGst || []).map(r => [r.k, r.st, r.sg, r.pt, r.pg, r.net].map(x => typeof x === 'number' ? x.toFixed(2) : x).join(',')).join('\n'), 'text/csv');
+    }
+    function renderTrialBalance() {
+      const A = {}; fsJournal(chR.f, chR.t).forEach(r => r.L.forEach(([n, d, c]) => { const a = A[n] = A[n] || { d: 0, c: 0 }; a.d += +d || 0; a.c += +c || 0; }));
+      const names = Object.keys(A).sort((x, y) => x.localeCompare(y)), D = names.reduce((a, n) => a + A[n].d, 0), C = names.reduce((a, n) => a + A[n].c, 0);
+      el('mainContainer').innerHTML = chHead('⚖️ Trial Balance', 'renderTrialBalance') +
+        `<p class="section-subtitle">Transactions அடிப்படையில் (Party/Item Opening balance சேர்க்கப்படவில்லை).</p>
+        <div style="overflow-x:auto"><table class="data-table" style="width:100%"><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${names.map(n => `<tr><td>${escH(n)}</td><td style="text-align:right">${A[n].d ? fmt(A[n].d) : ''}</td><td style="text-align:right">${A[n].c ? fmt(A[n].c) : ''}</td></tr>`).join('') || '<tr><td colspan=3>தரவு இல்லை</td></tr>'}
+        <tr style="font-weight:800;background:#f8fafc"><td>மொத்தம்</td><td style="text-align:right">${fmt(D)}</td><td style="text-align:right">${fmt(C)}</td></tr></tbody></table></div>`;
+    }
+    function renderDayBook() {
+      const rows = fsJournal(chR.f, chR.t);
+      el('mainContainer').innerHTML = chHead('📒 Day Book', 'renderDayBook') +
+        `<div style="overflow-x:auto"><table class="data-table" style="width:100%"><thead><tr><th>தேதி</th><th>No</th><th>வகை</th><th>Particulars</th><th>Amount</th></tr></thead><tbody>${rows.map(r => `<tr><td>${escH(r.d)}</td><td>${escH(r.no || '')}</td><td>${escH(r.tag)}</td><td>${r.L.map(([n, d, c]) => (d ? 'Dr ' : 'Cr ') + escH(n)).join('<br>')}</td><td style="text-align:right">${r.L.map(([n, d, c]) => fmt(d || c)).join('<br>')}</td></tr>`).join('') || '<tr><td colspan=5>தரவு இல்லை</td></tr>'}</tbody></table></div>`;
+    }
+    NAV_MENU.push({ label: '📊 15. Reports (GST / TB / Day Book)', id: 'rptD', subs: [['📑 GST Summary', 'renderGstSummary()'], ['⚖️ Trial Balance', 'renderTrialBalance()'], ['📒 Day Book', 'renderDayBook()']] });
+  
+    /* ================= Patch v4: Scale (IndexedDB + மாத வாரி Shard + Incremental save) ================= */
+    // தரவு: IndexedDB 'col' store-இல். Transaction arrays மாதம் வாரியாகப் பிரிக்கப்பட்டு (T|SO|2026-04), மற்றவை K|NAME என.
+    // மாறிய பகுதி மட்டுமே எழுதப்படும். localStorage-க்கு முழு JSON எழுதுவது நிறுத்தப்பட்டது.
+    let chLast = {}, chBusy = false, chAgain = false, chTimer = null, chFileTimer = null;
+    function chSerialize(db) {
+      db = db || APP_DB; const out = {};
+      for (const k of Object.keys(db)) {
+        const v = db[k]; if (v === undefined) continue;
+        if (CH_DOC_TYPES.includes(k) && Array.isArray(v)) {
+          const g = {}; v.forEach(d => { const m = String((d && d.date) || '').slice(0, 7) || 'none'; (g[m] = g[m] || []).push(d); });
+          for (const m in g) out['T|' + k + '|' + m] = JSON.stringify(g[m]);
+        } else out['K|' + k] = JSON.stringify(v);
+      }
+      return out;
+    }
+    function chPersistSoon() { clearTimeout(chTimer); chTimer = setTimeout(() => { chTimer = null; chPersist(); }, 700); }
+    async function chPersist() {
+      if (chBusy) { chAgain = true; return; }
+      chBusy = true;
+      try {
+        do {
+          chAgain = false;
+          const cur = chSerialize(chArch ? chLive : APP_DB), put = {}, del = [];
+          for (const k in cur) if (chLast[k] !== cur[k]) put[k] = cur[k];
+          for (const k in chLast) if (!(k in cur)) del.push(k);
+          if (Object.keys(put).length || del.length) {
+            const d = await IDBX.open(), t = d.transaction('col', 'readwrite'), st = t.objectStore('col');
+            for (const k in put) st.put(put[k], k);
+            del.forEach(k => st.delete(k));
+            await new Promise((res, rej) => { t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error); });
+            Object.assign(chLast, put); del.forEach(k => delete chLast[k]);
+          }
+          _saveErr.ls = false; refreshSaveBadge();
+        } while (chAgain);
+        if (!chArch && localStorage.getItem('CH_LAST_BACKUP') !== new Date().toISOString().slice(0, 10)) chDailyBackup(JSON.stringify(APP_DB)).catch(() => {});
+      } catch (e) { _saveErr.ls = true; showSaveWarning('Browser database-ல் சேமிக்க முடியவில்லை: ' + (e && e.message || e) + '. உடனே Export மூலம் backup எடுக்கவும்.'); }
+      finally { chBusy = false; }
+    }
+    function chFileSoon() { clearTimeout(chFileTimer); chFileTimer = setTimeout(() => { chFileTimer = null; queueFileWrite(); }, 3000); }
+    function chReadAll() {
+      return IDBX.open().then(d => new Promise((res, rej) => {
+        const out = {}, q = d.transaction('col').objectStore('col').openCursor();
+        q.onsuccess = e => { const c = e.target.result; if (c) { out[c.key] = c.value; c.continue(); } else res(out); };
+        q.onerror = () => rej(q.error);
+      }));
+    }
+    async function chBoot() {
+      try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+      try {
+        const raw = await chReadAll(), keys = Object.keys(raw).sort();
+        if (keys.length) {
+          const obj = {};
+          keys.forEach(k => { const a = k.split('|'); if (a[0] === 'K') obj[a[1]] = JSON.parse(raw[k]); else obj[a[1]] = (obj[a[1]] || []).concat(JSON.parse(raw[k])); });
+          loadDbObject(obj); CH_DOC_TYPES.forEach(t => { if (!Array.isArray(APP_DB[t])) APP_DB[t] = []; }); chLast = raw;
+        } else {
+          // முதல் முறை: பழைய localStorage cache இருந்தால் இடமாற்றம்
+          await chPersist();
+          if (!_saveErr.ls) { try { localStorage.removeItem('CH_EXTERNAL_DB_CACHE_V30'); } catch (e) {} }
+        }
+      } catch (e) { console.warn('chBoot', e); }
+    }
+    // tab மூடும்/மறையும் முன் உடனே சேமி
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { if (chTimer) { clearTimeout(chTimer); chTimer = null; chPersist(); } if (chFileTimer) { clearTimeout(chFileTimer); chFileTimer = null; queueFileWrite(); } } });
+    window.addEventListener('beforeunload', e => { if (chTimer || chFileTimer || chBusy) { e.preventDefault(); e.returnValue = ''; } });
+    // Backup சுருக்கம் (gzip)
+    async function chGz(str) { if (!window.CompressionStream) return new Blob([str]); return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).blob(); }
+    async function chBkText(b) { if (b.json) return b.json; if (!b.gz) return await b.blob.text(); return new Response(b.blob.stream().pipeThrough(new DecompressionStream('gzip'))).text(); }
+    // Backup பக்கத்தில் சேமிப்பு அளவு
+    (function () {
+      const rb = renderBackups;
+      renderBackups = async function () {
+        await rb();
+        try { const e = await navigator.storage.estimate(), mb = x => (x / 1048576).toFixed(1); el('mainContainer').insertAdjacentHTML('beforeend', `<p class="section-subtitle" style="margin-top:12px">🗄️ Browser சேமிப்பு: ${mb(e.usage)} MB பயன்பாடு / ${mb(e.quota)} MB வரம்பு · Data ${mb(JSON.stringify(APP_DB).length)} MB</p>`); } catch (x) {}
+      };
+    })();
+  
+    /* ================= Patch v5: நிதியாண்டு Close / Archive / பழைய ஆண்டு திருத்தம் ================= */
+    var chArch = null, chLive = null;   // chArch != null  ⇒ பழைய நிதியாண்டு திருத்தும் முறை (APP_DB = அந்த ஆண்டின் தனி Workspace)
+    const chLc = x => String(x || '').toLowerCase();
+    async function chKvGet(k) { const d = await IDBX.open(); return new Promise((res, rej) => { const q = d.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => rej(q.error); }); }
+    const chKvPut = (k, v) => IDBX.put('kv', v, k);
+    // தேதி வரையிலான பதிவுகளை மட்டும் வைத்து fn இயக்கு
+    function chAsOf(to, fn) {
+      const keep = {}; CH_DOC_TYPES.forEach(t => { keep[t] = APP_DB[t]; APP_DB[t] = (APP_DB[t] || []).filter(d => String(d.date || '') <= to); });
+      try { return fn(); } finally { CH_DOC_TYPES.forEach(t => { if (keep[t] === undefined) delete APP_DB[t]; else APP_DB[t] = keep[t]; }); }
+    }
+    // வேகமான (ஒரே pass) நிலுவை / Stock கணக்கு — calcPartyBal, getItemStock சூத்திரத்தின் நகல்
+    function chCompute() {
+      const sb = (arr, nf, vf) => { const m = {}; (arr || []).forEach(r => { const k = chLc(r[nf]); m[k] = (m[k] || 0) + Number(r[vf] || 0); }); return m; };
+      const s = sb(APP_DB.SO, 'partyName', 'grandTotal'), p = sb(APP_DB.PO, 'partyName', 'grandTotal'), rc = sb(APP_DB.RECEIPT, 'partyName', 'amount'), py = sb(APP_DB.PAYMENT, 'partyName', 'amount'),
+        cn = sb(APP_DB.CN, 'partyName', 'grandTotal'), dn = sb(APP_DB.DN, 'partyName', 'grandTotal'), prt = sb(APP_DB.PRET, 'partyName', 'grandTotal'), srt = sb(APP_DB.SRET, 'partyName', 'grandTotal'),
+        jD = sb(APP_DB.JV, 'drParty', 'amount'), jC = sb(APP_DB.JV, 'crParty', 'amount'), parties = {}, items = {};
+      (APP_DB.SUPPLIERS || []).forEach(a => {
+        const n = chLc(a.name), g = m => m[n] || 0, op = Number(a.balance || 0);
+        const b = isCustomerLedger(a) ? op + g(s) + g(dn) - g(rc) - g(cn) + g(py) - g(p) - g(srt) + g(prt) + g(jD) - g(jC)
+                                      : op + g(p) + g(cn) - g(py) - g(dn) + g(rc) - g(s) - g(prt) + g(srt) + g(jC) - g(jD);
+        if (Math.abs(b) > 1e-9) parties[a.name] = Math.round(b * 100) / 100;
+      });
+      const net = {}, add = (arr, sg) => (arr || []).forEach(d => (d.items || []).forEach(it => { const k = chLc(it.itemName); net[k] = (net[k] || 0) + sg * Number(it.qty || 0); }));
+      add(APP_DB.PO, 1); add(APP_DB.SO, -1); add(APP_DB.PRET, -1); add(APP_DB.SRET, 1);
+      const op = {}; (APP_DB.MATERIALS || []).forEach(m => { const k = chLc(m.name); op[k] = (op[k] || 0) + Number(m.openingQty || 0); });
+      (APP_DB.MATERIALS || []).forEach(m => { const k = chLc(m.name), q = Math.round(((op[k] || 0) + (net[k] || 0)) * 1000) / 1000; if (Math.abs(q) > 1e-9) items[m.name] = q; });
+      return { parties, items };
+    }
+    function chComputeChecked() {   // பழைய சூத்திரத்துடன் மாதிரிச் சரிபார்ப்பு
+      const r = chCompute();
+      (APP_DB.SUPPLIERS || []).slice(0, 25).forEach(a => { if (Math.abs(calcPartyBal(a).amount - (r.parties[a.name] || 0)) > 0.01) throw new Error('நிலுவை சரிபார்ப்பு பொருந்தவில்லை: ' + a.name); });
+      (APP_DB.MATERIALS || []).slice(0, 25).forEach(m => { if (Math.abs(getItemStock(m.name) - (r.items[m.name] || 0)) > 0.001) throw new Error('Stock சரிபார்ப்பு பொருந்தவில்லை: ' + m.name); });
+      return r;
+    }
+    function chOpeningOf(db) {
+      const o = { parties: {}, items: {} };
+      (db.SUPPLIERS || []).forEach(a => { if (Number(a.balance || 0)) o.parties[a.name] = Number(a.balance); });
+      (db.MATERIALS || []).forEach(m => { if (Number(m.openingQty || 0)) o.items[m.name] = Number(m.openingQty); });
+      return o;
+    }
+    function chDelta(now, base) {
+      const out = { parties: {}, items: {}, n: 0 };
+      ['parties', 'items'].forEach(k => { const tol = k === 'parties' ? 0.005 : 0.0005; new Set([...Object.keys(now[k]), ...Object.keys(base[k] || {})]).forEach(nm => { const d = (now[k][nm] || 0) - ((base[k] || {})[nm] || 0); if (Math.abs(d) > tol) { out[k][nm] = Math.round(d * 1000) / 1000; out.n++; } }); });
+      return out;
+    }
+
+    // ---------- நிதியாண்டை Close செய்தல் ----------
+    async function chDownloadArchive(fy) {
+      const m = await chKvGet('ARCHM|' + fy), d = await chKvGet('ARCHD|' + fy);
+      if (!m || !d) return alert('இந்த device-இல் ' + fy + ' archive இல்லை.');
+      saveFileCompat('CH_Archive_' + fy + '.json', '{"chArchive":1,"meta":' + m + ',"docs":' + d + '}', 'application/json');
+    }
+    async function chCloseFY() {
+      if (chArch) return alert('முதலில் பழைய ஆண்டு திருத்தும் முறையிலிருந்து Exit செய்யவும்.');
+      if (!currentAuthUser || currentAuthUser.role !== 'admin') return alert('Admin மட்டுமே நிதியாண்டை Close செய்ய முடியும்.');
+      const cl = APP_DB.FY_CLOSED || [], last = cl.length ? cl[cl.length - 1].to : '';
+      const y = parseInt(prompt('எந்த நிதியாண்டை Close செய்ய வேண்டும்?\nதொடக்க ஆண்டை உள்ளிடவும் (எ.கா. 2025 = 2025-26):', last ? String(parseInt(last.slice(0, 4))) : ''), 10);
+      if (!y) return;
+      const from = y + '-04-01', to = (y + 1) + '-03-31', fy = y + '-' + String(y + 1).slice(2);
+      if (last && y !== parseInt(last.slice(0, 4))) return alert('ஆண்டுகளை வரிசையாகவே Close செய்ய வேண்டும். அடுத்தது: ' + parseInt(last.slice(0, 4)) + '-' + String(parseInt(last.slice(0, 4)) + 1).slice(2));
+      if (to >= getFY().startDate) return alert('நடப்பு நிதியாண்டை Close செய்ய முடியாது (முடிந்த ஆண்டுகள் மட்டும்).');
+      if (!confirm(fy + ' (' + from + ' → ' + to + ') ஆண்டை Close செய்யவா?\n\n• அந்த ஆண்டின் எல்லா பதிவுகளும் தனி Archive-ஆகச் சேமிக்கப்படும் (file-ஆகவும் download ஆகும்)\n• Party நிலுவை, Item Stock புதிய ஆண்டின் தொடக்க நிலுவையாக மாறும்\n• Live data-விலிருந்து அந்தப் பதிவுகள் நீங்கும்\n• முழு Backup முதலில் எடுக்கப்படும்')) return;
+      try {
+        localStorage.removeItem('CH_LAST_BACKUP'); await chDailyBackup(JSON.stringify(APP_DB));
+        const opening = chOpeningOf(APP_DB), closing = chAsOf(to, chComputeChecked), docs = {}; let count = 0;
+        CH_DOC_TYPES.forEach(t => { docs[t] = (APP_DB[t] || []).filter(d => String(d.date || '') <= to); count += docs[t].length; });
+        const meta = { fy, from, to, closedAt: new Date().toISOString(), opening, closing, count };
+        await chKvPut('ARCHD|' + fy, JSON.stringify(docs)); await chKvPut('ARCHM|' + fy, JSON.stringify(meta));
+        if (!(await chKvGet('ARCHD|' + fy)) || !(await chKvGet('ARCHM|' + fy))) throw new Error('Archive சேமிக்க முடியவில்லை');
+        await chDownloadArchive(fy);
+        CH_DOC_TYPES.forEach(t => { APP_DB[t] = (APP_DB[t] || []).filter(d => String(d.date || '') > to); });
+        APP_DB.SUPPLIERS.forEach(a => { a.balance = closing.parties[a.name] || 0; });
+        APP_DB.MATERIALS.forEach(m => { m.openingQty = closing.items[m.name] || 0; });
+        (APP_DB.FY_CLOSED = APP_DB.FY_CLOSED || []).push({ fy, from, to, closedAt: meta.closedAt, count });
+        APP_DB.LOCK_DATE = to; chAudit('CLOSE FY', fy + ' · ' + count + ' பதிவுகள்'); saveDB();
+        alert('✅ ' + fy + ' Close ஆனது.\n' + count + ' பதிவுகள் Archive-க்கு மாற்றப்பட்டன.\nDownload ஆன Archive file-ஐப் பத்திரமாக வைக்கவும்.'); renderFYManager();
+      } catch (e) { alert('Year Close தோல்வி: ' + e.message + '\nLive data மாற்றப்படவில்லை.'); }
+    }
+
+    // ---------- பழைய ஆண்டைத் திறந்து திருத்துதல் ----------
+    function chBar(fy) {
+      document.getElementById('chArchBar')?.remove();
+      const b = document.createElement('div'); b.id = 'chArchBar';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99990;background:#7c2d12;color:#fff;padding:5px 12px;font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between;height:38px';
+      b.innerHTML = '<span>📁 பழைய நிதியாண்டு <b>' + escH(fy) + '</b> திருத்தும் முறை — Live data அல்ல</span><button class="btn btn-save" onclick="chExitFY()">💾 Save &amp; Exit</button>';
+      document.body.appendChild(b); document.body.style.paddingTop = '38px';
+    }
+    async function chOpenFY(fy) {
+      if (chArch) return;
+      const ms = await chKvGet('ARCHM|' + fy), ds = await chKvGet('ARCHD|' + fy);
+      if (!ms || !ds) return alert('இந்த device-இல் ' + fy + ' archive இல்லை. "Archive file Import" செய்யவும்.');
+      if (chTimer) { clearTimeout(chTimer); chTimer = null; } await chPersist();
+      if (chFileTimer) { clearTimeout(chFileTimer); chFileTimer = null; queueFileWrite(); }
+      const meta = JSON.parse(ms), docs = JSON.parse(ds), live = APP_DB, w = initCleanState();
+      Object.keys(live).forEach(k => { if (CH_DOC_TYPES.includes(k) || live[k] === undefined) return; w[k] = (k === 'AUTH_USERS' || k === 'AUDIT_LOG' || k === 'FY_CLOSED') ? live[k] : JSON.parse(JSON.stringify(live[k])); });
+      CH_DOC_TYPES.forEach(t => { w[t] = docs[t] || []; });
+      w.SUPPLIERS.forEach(a => { a.balance = meta.opening.parties[a.name] || 0; });
+      w.MATERIALS.forEach(m => { m.openingQty = meta.opening.items[m.name] || 0; });
+      w.LOCK_DATE = '';
+      chLive = live; chArch = { meta, docs, decl: '', busy: false }; APP_DB = w; chBar(fy); chAudit('OPEN FY', fy); showDashboard();
+    }
+    let chArchTimer = null;
+    function chArchSaveSoon() { clearTimeout(chArchTimer); chArchTimer = setTimeout(async () => { chArchTimer = null; try { await chArchSave(); await chArchCheck(); } catch (e) { showSaveWarning('Archive சேமிக்க முடியவில்லை: ' + e.message); } }, 700); }
+    async function chArchSave() {
+      const a = chArch; if (!a) return;
+      CH_DOC_TYPES.forEach(t => { a.docs[t] = APP_DB[t] || []; }); a.meta.opening = chOpeningOf(APP_DB);
+      await chKvPut('ARCHD|' + a.meta.fy, JSON.stringify(a.docs)); await chKvPut('ARCHM|' + a.meta.fy, JSON.stringify(a.meta));
+    }
+    function chDeltaText(d, fy) {
+      const line = (nm, v, tag) => '• ' + nm + ' (' + tag + '): ' + (v > 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+      const rows = [...Object.entries(d.parties).map(([n, v]) => line(n, v, 'நிலுவை')), ...Object.entries(d.items).map(([n, v]) => line(n, v, 'Stock'))];
+      return '🗓️ ' + fy + ' பதிவுகளில் மாற்றம் ஏற்பட்டதால் ஆண்டு முடிவு நிலுவை மாறுகிறது:\n\n' + rows.slice(0, 12).join('\n') + (rows.length > 12 ? '\n… மேலும் ' + (rows.length - 12) : '') +
+        '\n\nஇந்த மாற்றங்களை அடுத்த நிதியாண்டு(கள்) மற்றும் நடப்பு Data-வின் தொடக்க நிலுவையில் கடத்தவா?\n\nOK = கடத்து\nCancel = இப்போது வேண்டாம் (Exit செய்யும்போது மீண்டும் கேட்கும்)';
+    }
+    async function chArchCheck(force) {
+      const a = chArch; if (!a || a.busy) return;
+      const d = chDelta(chCompute(), a.meta.closing); if (!d.n) return;
+      const sig = JSON.stringify(d); if (!force && a.decl === sig) return;
+      a.busy = true;
+      try { if (confirm(chDeltaText(d, a.meta.fy))) await chCarry(d); else a.decl = sig; } finally { a.busy = false; }
+    }
+    function chEnsureMasters() {
+      [['SUPPLIERS', 'balance'], ['MATERIALS', 'openingQty']].forEach(([k, f]) => (APP_DB[k] || []).forEach(x => { if (!chLive[k].some(y => chLc(y.name) === chLc(x.name))) { const c = JSON.parse(JSON.stringify(x)); c[f] = 0; chLive[k].push(c); } }));
+      ['MATERIAL_GROUPS_TREE', 'SUPPLIER_GROUPS_TREE'].forEach(k => (APP_DB[k] || []).forEach(g => { chLive[k] = chLive[k] || []; if (!chLive[k].some(y => y.id === g.id)) chLive[k].push(JSON.parse(JSON.stringify(g))); }));
+    }
+    async function chCarry(d) {
+      const a = chArch, later = (chLive.FY_CLOSED || []).filter(x => x.from > a.meta.to), metas = [];
+      for (const x of later) { const m = await chKvGet('ARCHM|' + x.fy); if (!m) return alert('⚠️ ' + x.fy + ' archive இந்த device-இல் இல்லை. முதலில் Import செய்யவும். கடத்தல் நிறுத்தப்பட்டது.'); metas.push(JSON.parse(m)); }
+      chEnsureMasters();
+      const sh = (m, k, nm, v) => { m[k][nm] = Math.round(((m[k][nm] || 0) + v) * 1000) / 1000; if (Math.abs(m[k][nm]) < 1e-9) delete m[k][nm]; };
+      metas.forEach(m => ['parties', 'items'].forEach(k => { for (const nm in d[k]) { sh(m.opening, k, nm, d[k][nm]); sh(m.closing, k, nm, d[k][nm]); } }));
+      for (const m of metas) await chKvPut('ARCHM|' + m.fy, JSON.stringify(m));
+      for (const nm in d.parties) { const x = chLive.SUPPLIERS.find(y => chLc(y.name) === chLc(nm)); if (x) x.balance = Math.round((Number(x.balance || 0) + d.parties[nm]) * 100) / 100; }
+      for (const nm in d.items) { const x = chLive.MATERIALS.find(y => chLc(y.name) === chLc(nm)); if (x) x.openingQty = Math.round((Number(x.openingQty || 0) + d.items[nm]) * 1000) / 1000; }
+      a.meta.closing = chCompute(); await chArchSave(); await chPersist();
+      chAudit('CARRY FWD', a.meta.fy + ' · ' + d.n + ' மாற்றங்கள் → ' + (later.map(x => x.fy).concat('நடப்பு')).join(', '));
+      showSaveWarning('✅ மாற்றங்கள் அடுத்த நிதியாண்டுக்குக் கடத்தப்பட்டன.');
+    }
+    async function chExitFY() {
+      const a = chArch; if (!a) return;
+      clearTimeout(chArchTimer); await chArchSave(); await chArchCheck(true);
+      chEnsureMasters();
+      Object.keys(APP_DB).filter(k => /COUNTER$/.test(k)).forEach(k => { chLive[k] = Math.max(Number(chLive[k] || 1), Number(APP_DB[k] || 1)); });
+      const live = chLive; APP_DB = live; chArch = null; chLive = null;
+      document.getElementById('chArchBar')?.remove(); document.body.style.paddingTop = '';
+      chAudit('EXIT FY', a.meta.fy); saveDB(); showDashboard();
+    }
+    (function () {   // பழைய ஆண்டு முறையில் Database load / Reset தடுப்பு
+      const ld = loadDbObject; loadDbObject = function (o) { if (chArch) { alert('பழைய ஆண்டு திருத்தும் முறையில் Database load செய்ய முடியாது. முதலில் Save & Exit செய்யவும்.'); return; } return ld(o); };
+      const rs = resetCleanDB; resetCleanDB = function () { if (chArch) return alert('பழைய ஆண்டு முறையில் Reset செய்ய முடியாது.'); return rs.apply(this, arguments); };
+    })();
+
+    // ---------- நிர்வாகப் பக்கம் ----------
+    async function renderFYManager() {
+      const cl = APP_DB.FY_CLOSED || [], rows = [];
+      for (const x of cl) { const have = !!(await chKvGet('ARCHM|' + x.fy)); rows.push(`<tr><td><b>${escH(x.fy)}</b></td><td>${escH(x.from)} → ${escH(x.to)}</td><td>${x.count}</td><td>${have ? '✅' : '⚠️ இந்த device-இல் இல்லை'}</td>
+        <td><button class="btn btn-save" ${have && !chArch ? '' : 'disabled'} onclick="chOpenFY('${x.fy}')">✏️ திற / திருத்து</button> <button class="btn btn-print" ${have ? '' : 'disabled'} onclick="chDownloadArchive('${x.fy}')">⬇️ File</button></td></tr>`); }
+      el('mainContainer').innerHTML = `<h2 class="page-title">🗓️ நிதியாண்டு Close / Archive</h2>
+        <p class="section-subtitle">முடிந்த ஆண்டின் பதிவுகள் Archive-க்குச் செல்லும்; நிலுவை மட்டும் புதிய ஆண்டுக்குக் கடத்தப்படும். பழைய ஆண்டைத் திறந்து திருத்தினால், மாற்றங்களை அடுத்த ஆண்டுக்குக் கடத்த வேண்டுமா என்று கேட்கும்.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-bulk" onclick="chCloseFY()">🗓️ நிதியாண்டை Close செய்</button>
+        <button class="btn btn-convert" onclick="el('chArchFile').click()">📥 Archive file Import</button><button class="btn btn-cancel" onclick="showDashboard()">← Back</button>
+        <input type="file" id="chArchFile" accept=".json" style="display:none" onchange="chImportArchiveFile(event)"></div>
+        <div style="overflow-x:auto"><table class="data-table" style="width:100%"><thead><tr><th>ஆண்டு</th><th>காலம்</th><th>பதிவுகள்</th><th>Archive</th><th>Action</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan=5>இன்னும் எந்த ஆண்டும் Close ஆகவில்லை</td></tr>'}</tbody></table></div>`;
+    }
+    function chImportArchiveFile(e) {
+      const f = e.target.files[0]; if (!f) return; const r = new FileReader();
+      r.onload = async ev => {
+        try {
+          const o = JSON.parse(ev.target.result); if (!o.chArchive || !o.meta || !o.docs) throw new Error('இது Archive file அல்ல');
+          if (!(APP_DB.FY_CLOSED || []).some(x => x.fy === o.meta.fy)) throw new Error(o.meta.fy + ' இந்த Database-இல் Close செய்யப்படவில்லை');
+          await chKvPut('ARCHD|' + o.meta.fy, JSON.stringify(o.docs)); await chKvPut('ARCHM|' + o.meta.fy, JSON.stringify(o.meta));
+          alert('✅ Import ஆனது: ' + o.meta.fy); renderFYManager();
+        } catch (x) { alert('Import தோல்வி: ' + x.message); }
+      };
+      r.readAsText(f); e.target.value = '';
+    }
+    NAV_MENU.push({ label: '🗓️ 16. Year Close / Archive', fn: 'renderFYManager()' });
   </script>
 </body>
 </html>
