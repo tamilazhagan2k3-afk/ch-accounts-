@@ -287,8 +287,8 @@
           </div>
         </div>
 
-        <div class="table-container">
-          <table class="items-table">
+        <div class="table-container" style="width:100%;overflow-x:auto;">
+          <table class="items-table" style="min-width:1040px;">
             <thead>
               <tr>
                 <th style="width:35px">#</th>
@@ -1699,7 +1699,12 @@
         <td style="width:42px;background:#ecfdf5;text-align:center;font-weight:700;padding:3px 2px" class="item-volume">1 L</td>
         <td><input type="text" class="item-hsn" style="text-align:center" onkeydown="onItemFieldKey(event,this,'hsn')"></td>
         <td style="width:64px;padding:2px"><input type="number" class="item-rate" value="0" step="any" oninput="calcTotals()" onkeydown="onItemFieldKey(event,this,'rate')"></td>
-        <td class="item-rate-gst-value" style="width:68px;background:#e0f2fe;text-align:right;font-weight:700;padding:4px 3px;display:${(['PO','SO'].includes(el('currentDocType')?.value)) ? '' : 'none'}">0.00</td>
+        <td style="width:92px;background:#e0f2fe;padding:2px;display:${(['PO','SO'].includes(el('currentDocType')?.value)) ? '' : 'none'}">
+          <input type="number" class="item-rate-gst-value" value="0.00" step="any"
+            style="width:100%;min-width:78px;text-align:right;font-weight:700;background:#eff8ff;border:1px solid #bfdbfe;border-radius:4px;padding:5px 3px;"
+            title="Value (Rate + GST). Sales Order-ல் நேரடியாக மாற்றலாம்"
+            ${el('currentDocType')?.value === 'SO' ? 'oninput="onRateGstValueInput(this)"' : 'readonly'}>
+        </td>
         <td style="background:#fdf2f8;padding:2px;">
           <div style="display:flex;gap:2px;align-items:center;">
             <input type="number" class="item-disc" value="0" step="any" style="width:52px;" oninput="calcTotals()" onkeydown="onItemFieldKey(event,this,'disc')" title="Discount value">
@@ -1711,7 +1716,7 @@
         </td>
         <td><input type="number" class="item-tax" value="18" step="any" oninput="calcTotals()" onkeydown="onItemFieldKey(event,this,'tax')"></td>
         <td class="colorant-voucher-column" style="background:#fffbeb"><input type="number" class="item-colorant" value="0" step="any" oninput="calcTotals()" onkeydown="onItemFieldKey(event,this,'colorant')"></td>
-        <td style="text-align:right;"><input type="number" class="row-amount" value="0" step="any" style="text-align:right;font-weight:700;width:100%;" title="Total (GST உட்பட) – உள்ளிட்டால் Rate auto-calc" oninput="onRowTotalInput(this)" onkeydown="onItemFieldKey(event,this,'total')" onblur="calcTotals()"></td>
+        <td style="text-align:right;min-width:112px;background:#f0fdf4;padding:2px;"><input type="number" class="row-amount" value="0.00" step="any" style="display:block;text-align:right;font-weight:800;font-size:13px;width:100%;min-width:100px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:6px 4px;color:#166534;" title="Total (GST உட்பட). நேரடியாக உள்ளிட்டால் Sales/Purchase Rate reverse calculation ஆகும்" oninput="onRowTotalInput(this)" onkeydown="onItemFieldKey(event,this,'total')" onblur="calcTotals()"></td>
         <td style="text-align:center"><button class="btn-del-row" onclick="delItemRow(this)">✕</button></td>`;
       
       const unitInp = tr.querySelector('.item-unit');
@@ -1951,11 +1956,26 @@
     }
 
     /**
-     * Manual Total → reverse Rate
-     * Total = Taxable + GST + Colorant
-     * Taxable = (Total − Colorant) / (1 + GST%)
-     * Rate derived after removing Discount
+     * Manual Total → reverse-calculate Base Rate.
+     * Quantity, GST%, Discount type/value and Colorant are retained as entered;
+     * because one Total cannot uniquely determine several independent inputs,
+     * Rate is the mathematically determined field. Value (Rate + GST) refreshes automatically.
      */
+    /**
+     * Sales Order: direct Value (Base Rate + GST) entry → reverse-calculate Base Sales Rate.
+     * Quantity / GST / Discount remain as entered; Value is a per-unit GST-inclusive rate.
+     */
+    function onRateGstValueInput(inp) {
+      const tr = inp.closest('tr');
+      if (!tr || el('currentDocType')?.value !== 'SO') return;
+      const gst = Math.max(0, parseFloat(tr.querySelector('.item-tax')?.value) || 0);
+      const value = Math.max(0, parseFloat(inp.value) || 0);
+      const baseRate = value / (1 + gst / 100);
+      const rateInp = tr.querySelector('.item-rate');
+      if (rateInp) rateInp.value = Number.isFinite(baseRate) ? baseRate.toFixed(4) : '0';
+      calcTotals();
+    }
+
     function onRowTotalInput(inp) {
       const tr = inp.closest('tr');
       if (!tr) return;
@@ -2145,7 +2165,8 @@
         const valueCell = tr.querySelector('.item-rate-gst-value');
         if (valueCell) {
           valueCell.style.display = ['PO','SO'].includes(el('currentDocType')?.value) ? '' : 'none';
-          valueCell.innerText = (r * (1 + g / 100)).toFixed(2);
+          const rateWithGst = r * (1 + g / 100);
+          if (document.activeElement !== valueCell) valueCell.value = rateWithGst.toFixed(2);
         }
         const taxableAfterInvoiceLess = taxable * invoiceLessFactor;
         const cg = (taxableAfterInvoiceLess * (g / 2)) / 100;
